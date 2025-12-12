@@ -1,0 +1,192 @@
+/**
+ * Core types for lb-cli
+ * Designed to match bd (beads) JSON output as closely as possible
+ */
+
+// Issue status - matches bd semantics, maps to Linear workflow states
+export type IssueStatus = "open" | "in_progress" | "closed";
+
+// Issue type - matches bd
+export type IssueType = "bug" | "feature" | "task" | "epic" | "chore";
+
+// Priority - matches bd (0-4, 0 is highest)
+export type Priority = 0 | 1 | 2 | 3 | 4;
+
+// Dependency types - matches bd
+export type DependencyType = "blocks" | "related" | "parent-child" | "discovered-from";
+
+/**
+ * Dependency edge - matches bd JSON shape exactly
+ */
+export interface Dependency {
+  issue_id: string;
+  depends_on_id: string;
+  type: DependencyType;
+  created_at: string;
+  created_by: string;
+}
+
+/**
+ * Issue - matches bd JSON shape
+ * Used for list/show/ready output
+ */
+export interface Issue {
+  id: string;
+  title: string;
+  description?: string;
+  status: IssueStatus;
+  priority: Priority;
+  issue_type: IssueType;
+  created_at: string;
+  updated_at: string;
+  closed_at?: string;
+  // Optional fields for list output
+  dependency_count?: number;
+  dependent_count?: number;
+  // Optional fields for ready output
+  dependencies?: Dependency[];
+}
+
+/**
+ * Linear-specific types for internal use
+ */
+export interface LinearIssue {
+  id: string;
+  identifier: string;
+  title: string;
+  description?: string | null;
+  priority: number;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string | null;
+  canceledAt?: string | null;
+  state: {
+    id: string;
+    name: string;
+    type: string;
+  };
+  labels: {
+    nodes: Array<{
+      id: string;
+      name: string;
+    }>;
+  };
+  parent?: {
+    id: string;
+    identifier: string;
+  } | null;
+  children?: {
+    nodes: Array<{
+      id: string;
+      identifier: string;
+    }>;
+  };
+  relations?: {
+    nodes: Array<{
+      id: string;
+      type: string;
+      relatedIssue: {
+        id: string;
+        identifier: string;
+      };
+    }>;
+  };
+}
+
+/**
+ * Outbox item for queued mutations
+ */
+export interface OutboxItem {
+  id: number;
+  operation: "create" | "update" | "close" | "create_relation" | "delete_relation";
+  payload: Record<string, unknown>;
+  created_at: string;
+  retry_count: number;
+  last_error?: string;
+}
+
+/**
+ * Config for lb-cli
+ */
+export interface Config {
+  api_key?: string;
+  team_id?: string;
+  team_key?: string;
+  repo_name?: string;
+  cache_ttl_seconds?: number;
+}
+
+/**
+ * Map bd status to Linear workflow state type
+ */
+export function statusToLinearState(status: IssueStatus): string {
+  switch (status) {
+    case "open":
+      return "unstarted";
+    case "in_progress":
+      return "started";
+    case "closed":
+      return "completed";
+  }
+}
+
+/**
+ * Map Linear workflow state type to bd status
+ */
+export function linearStateToStatus(stateType: string): IssueStatus {
+  switch (stateType) {
+    case "started":
+      return "in_progress";
+    case "completed":
+    case "canceled":
+      return "closed";
+    default:
+      return "open";
+  }
+}
+
+/**
+ * Map bd issue type to a reasonable default (Linear doesn't have issue types)
+ * We'll use labels for this
+ */
+export function issueTypeToLabel(type: IssueType): string {
+  return `type:${type}`;
+}
+
+/**
+ * Extract issue type from labels
+ */
+export function labelToIssueType(labels: string[]): IssueType {
+  for (const label of labels) {
+    if (label.startsWith("type:")) {
+      const type = label.slice(5) as IssueType;
+      if (["bug", "feature", "task", "epic", "chore"].includes(type)) {
+        return type;
+      }
+    }
+  }
+  return "task"; // default
+}
+
+/**
+ * Map bd priority (0=critical) to Linear priority (1=urgent, 0=none)
+ * bd: 0=critical, 1=high, 2=medium, 3=low, 4=backlog
+ * Linear: 0=none, 1=urgent, 2=high, 3=medium, 4=low
+ */
+export function priorityToLinear(bdPriority: Priority): number {
+  // bd 0 (critical) -> Linear 1 (urgent)
+  // bd 1 (high) -> Linear 2 (high)
+  // bd 2 (medium) -> Linear 3 (medium)
+  // bd 3 (low) -> Linear 4 (low)
+  // bd 4 (backlog) -> Linear 0 (none/backlog)
+  if (bdPriority === 4) return 0;
+  return bdPriority + 1;
+}
+
+/**
+ * Map Linear priority to bd priority
+ */
+export function linearToPriority(linearPriority: number): Priority {
+  if (linearPriority === 0) return 4;
+  return (linearPriority - 1) as Priority;
+}

@@ -1,0 +1,578 @@
+/**
+ * Linear API operations
+ */
+
+import { getGraphQLClient, ISSUE_FRAGMENT, ISSUE_WITH_RELATIONS_FRAGMENT } from "./graphql.js";
+import { getRepoLabel, getTeamKey, getOption } from "./config.js";
+import {
+  cacheIssue,
+  cacheIssues,
+  cacheDependency,
+  cacheLabel,
+  getLabelIdByName,
+  updateLastSync,
+} from "./database.js";
+import type { Issue, Dependency, IssueType, Priority, LinearIssue } from "../types.js";
+import {
+  linearStateToStatus,
+  linearToPriority,
+  labelToIssueType,
+  priorityToLinear,
+  issueTypeToLabel,
+  statusToLinearState,
+} from "../types.js";
+
+/**
+ * Convert Linear issue to bd-compatible issue
+ */
+function linearToBdIssue(linear: LinearIssue): Issue & { linear_state_id: string } {
+  const labels = linear.labels.nodes.map((l) => l.name);
+  
+  return {
+    id: linear.identifier,
+    title: linear.title,
+    description: linear.description || undefined,
+    status: linearStateToStatus(linear.state.type),
+    priority: linearToPriority(linear.priority),
+    issue_type: labelToIssueType(labels),
+    created_at: linear.createdAt,
+    updated_at: linear.updatedAt,
+    closed_at: linear.completedAt || linear.canceledAt || undefined,
+    linear_state_id: linear.state.id,
+  };
+}
+
+/**
+ * Get or create repo label
+ */
+export async function ensureRepoLabel(teamId: string): Promise<string> {
+  const client = getGraphQLClient();
+  const repoLabel = getRepoLabel();
+
+  // Check cache first
+  const cachedId = getLabelIdByName(repoLabel);
+  if (cachedId) return cachedId;
+
+  // Query existing labels
+  const query = `
+    query GetLabels($teamId: String!) {
+      team(id: $teamId) {
+        labels {
+          nodes {
+            id
+            name
+          }
+        }
+      }
+    }
+  `;
+
+  const result = await client.request<{
+    team: { labels: { nodes: Array<{ id: string; name: string }> } };
+  }>(query, { teamId });
+
+  const existing = result.team.labels.nodes.find((l) => l.name === repoLabel);
+  if (existing) {
+    cacheLabel(existing.id, existing.name, teamId);
+    return existing.id;
+  }
+
+  // Create label
+  const createMutation = `
+    mutation CreateLabel($input: IssueLabelCreateInput!) {
+      issueLabelCreate(input: $input) {
+        success
+        issueLabel {
+          id
+          name
+        }
+      }
+    }
+  `;
+
+  const createResult = await client.request<{
+    issueLabelCreate: {
+      success: boolean;
+      issueLabel: { id: string; name: string };
+    };
+  }>(createMutation, {
+    input: {
+      name: repoLabel,
+      teamId,
+    },
+  });
+
+  if (!createResult.issueLabelCreate.success) {
+    throw new Error(`Failed to create repo label: ${repoLabel}`);
+  }
+
+  cacheLabel(
+    createResult.issueLabelCreate.issueLabel.id,
+    createResult.issueLabelCreate.issueLabel.name,
+    teamId
+  );
+
+  return createResult.issueLabelCreate.issueLabel.id;
+}
+
+/**
+ * Ensure issue type label exists
+ */
+export async function ensureTypeLabel(teamId: string, type: IssueType): Promise<string> {
+  const client = getGraphQLClient();
+  const labelName = issueTypeToLabel(type);
+
+  // Check cache first
+  const cachedId = getLabelIdByName(labelName);
+  if (cachedId) return cachedId;
+
+  // Query existing labels
+  const query = `
+    query GetLabels($teamId: String!) {
+      team(id: $teamId) {
+        labels {
+          nodes {
+            id
+            name
+          }
+        }
+      }
+    }
+  `;
+
+  const result = await client.request<{
+    team: { labels: { nodes: Array<{ id: string; name: string }> } };
+  }>(query, { teamId });
+
+  const existing = result.team.labels.nodes.find((l) => l.name === labelName);
+  if (existing) {
+    cacheLabel(existing.id, existing.name, teamId);
+    return existing.id;
+  }
+
+  // Create label
+  const createMutation = `
+    mutation CreateLabel($input: IssueLabelCreateInput!) {
+      issueLabelCreate(input: $input) {
+        success
+        issueLabel {
+          id
+          name
+        }
+      }
+    }
+  `;
+
+  const createResult = await client.request<{
+    issueLabelCreate: {
+      success: boolean;
+      issueLabel: { id: string; name: string };
+    };
+  }>(createMutation, {
+    input: {
+      name: labelName,
+      teamId,
+    },
+  });
+
+  if (!createResult.issueLabelCreate.success) {
+    throw new Error(`Failed to create type label: ${labelName}`);
+  }
+
+  cacheLabel(
+    createResult.issueLabelCreate.issueLabel.id,
+    createResult.issueLabelCreate.issueLabel.name,
+    teamId
+  );
+
+  return createResult.issueLabelCreate.issueLabel.id;
+}
+
+/**
+ * Get team ID from team key
+ */
+export async function getTeamId(teamKey?: string): Promise<string> {
+  const client = getGraphQLClient();
+  const key = teamKey || getTeamKey();
+
+  if (!key) {
+    throw new Error("Team key not configured. Set LB_TEAM_KEY or use --team flag.");
+  }
+
+  const query = `
+    query GetTeam($key: String!) {
+      teams(filter: { key: { eq: $key } }) {
+        nodes {
+          id
+          key
+          name
+        }
+      }
+    }
+  `;
+
+  const result = await client.request<{
+    teams: { nodes: Array<{ id: string; key: string; name: string }> };
+  }>(query, { key });
+
+  if (result.teams.nodes.length === 0) {
+    throw new Error(`Team not found: ${key}`);
+  }
+
+  return result.teams.nodes[0].id;
+}
+
+/**
+ * Get workflow state ID for a status
+ */
+export async function getWorkflowStateId(
+  teamId: string,
+  status: Issue["status"]
+): Promise<string> {
+  const client = getGraphQLClient();
+  const stateType = statusToLinearState(status);
+
+  const query = `
+    query GetWorkflowStates($teamId: String!) {
+      team(id: $teamId) {
+        states {
+          nodes {
+            id
+            name
+            type
+          }
+        }
+      }
+    }
+  `;
+
+  const result = await client.request<{
+    team: { states: { nodes: Array<{ id: string; name: string; type: string }> } };
+  }>(query, { teamId });
+
+  const state = result.team.states.nodes.find((s) => s.type === stateType);
+  if (!state) {
+    throw new Error(`Workflow state not found for type: ${stateType}`);
+  }
+
+  return state.id;
+}
+
+/**
+ * Fetch issues from Linear with repo scoping
+ */
+export async function fetchIssues(teamId: string): Promise<Issue[]> {
+  const client = getGraphQLClient();
+  const repoLabel = getRepoLabel();
+
+  const query = `
+    query GetIssues($teamId: String!, $labelName: String!) {
+      team(id: $teamId) {
+        issues(filter: { labels: { name: { eq: $labelName } } }, first: 100) {
+          nodes {
+            ${ISSUE_WITH_RELATIONS_FRAGMENT}
+          }
+        }
+      }
+    }
+  `;
+
+  const result = await client.request<{
+    team: { issues: { nodes: LinearIssue[] } };
+  }>(query, { teamId, labelName: repoLabel });
+
+  const issues = result.team.issues.nodes.map(linearToBdIssue);
+  
+  // Cache issues and their relations
+  cacheIssues(issues);
+  
+  for (const linear of result.team.issues.nodes) {
+    // Cache parent-child relations
+    if (linear.parent) {
+      cacheDependency({
+        issue_id: linear.identifier,
+        depends_on_id: linear.parent.identifier,
+        type: "parent-child",
+        created_at: linear.createdAt,
+        created_by: "sync",
+      });
+    }
+
+    // Cache explicit relations
+    if (linear.relations) {
+      for (const rel of linear.relations.nodes) {
+        const depType = rel.type === "blocks" ? "blocks" : "related";
+        cacheDependency({
+          issue_id: linear.identifier,
+          depends_on_id: rel.relatedIssue.identifier,
+          type: depType,
+          created_at: linear.createdAt,
+          created_by: "sync",
+        });
+      }
+    }
+  }
+
+  updateLastSync();
+  return issues;
+}
+
+/**
+ * Fetch single issue by ID
+ */
+export async function fetchIssue(issueId: string): Promise<Issue | null> {
+  const client = getGraphQLClient();
+
+  const query = `
+    query GetIssue($id: String!) {
+      issue(id: $id) {
+        ${ISSUE_WITH_RELATIONS_FRAGMENT}
+      }
+    }
+  `;
+
+  try {
+    const result = await client.request<{ issue: LinearIssue | null }>(query, {
+      id: issueId,
+    });
+
+    if (!result.issue) return null;
+
+    const issue = linearToBdIssue(result.issue);
+    cacheIssue(issue);
+    return issue;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Create issue in Linear
+ */
+export async function createIssue(params: {
+  title: string;
+  description?: string;
+  priority: Priority;
+  issueType: IssueType;
+  teamId: string;
+  parentId?: string;
+}): Promise<Issue> {
+  const client = getGraphQLClient();
+
+  // Get required labels
+  const repoLabelId = await ensureRepoLabel(params.teamId);
+  const typeLabelId = await ensureTypeLabel(params.teamId, params.issueType);
+  const stateId = await getWorkflowStateId(params.teamId, "open");
+
+  const mutation = `
+    mutation CreateIssue($input: IssueCreateInput!) {
+      issueCreate(input: $input) {
+        success
+        issue {
+          ${ISSUE_FRAGMENT}
+        }
+      }
+    }
+  `;
+
+  const result = await client.request<{
+    issueCreate: { success: boolean; issue: LinearIssue | null };
+  }>(mutation, {
+    input: {
+      title: params.title,
+      description: params.description,
+      priority: priorityToLinear(params.priority),
+      teamId: params.teamId,
+      stateId,
+      labelIds: [repoLabelId, typeLabelId],
+      parentId: params.parentId,
+    },
+  });
+
+  if (!result.issueCreate.success || !result.issueCreate.issue) {
+    throw new Error("Failed to create issue");
+  }
+
+  const issue = linearToBdIssue(result.issueCreate.issue);
+  cacheIssue(issue);
+  return issue;
+}
+
+/**
+ * Update issue in Linear
+ */
+export async function updateIssue(
+  issueId: string,
+  updates: {
+    title?: string;
+    description?: string;
+    status?: Issue["status"];
+    priority?: Priority;
+  },
+  teamId: string
+): Promise<Issue> {
+  const client = getGraphQLClient();
+
+  // Build input
+  const input: Record<string, unknown> = {};
+  if (updates.title) input.title = updates.title;
+  if (updates.description !== undefined) input.description = updates.description;
+  if (updates.priority !== undefined) input.priority = priorityToLinear(updates.priority);
+  if (updates.status) {
+    input.stateId = await getWorkflowStateId(teamId, updates.status);
+  }
+
+  const mutation = `
+    mutation UpdateIssue($id: String!, $input: IssueUpdateInput!) {
+      issueUpdate(id: $id, input: $input) {
+        success
+        issue {
+          ${ISSUE_FRAGMENT}
+        }
+      }
+    }
+  `;
+
+  const result = await client.request<{
+    issueUpdate: { success: boolean; issue: LinearIssue | null };
+  }>(mutation, { id: issueId, input });
+
+  if (!result.issueUpdate.success || !result.issueUpdate.issue) {
+    throw new Error("Failed to update issue");
+  }
+
+  const issue = linearToBdIssue(result.issueUpdate.issue);
+  cacheIssue(issue);
+  return issue;
+}
+
+/**
+ * Close issue in Linear
+ */
+export async function closeIssue(
+  issueId: string,
+  teamId: string,
+  reason?: string
+): Promise<Issue> {
+  const client = getGraphQLClient();
+  const stateId = await getWorkflowStateId(teamId, "closed");
+
+  // Build input - add reason as comment if provided
+  const input: Record<string, unknown> = { stateId };
+
+  const mutation = `
+    mutation UpdateIssue($id: String!, $input: IssueUpdateInput!) {
+      issueUpdate(id: $id, input: $input) {
+        success
+        issue {
+          ${ISSUE_FRAGMENT}
+        }
+      }
+    }
+  `;
+
+  const result = await client.request<{
+    issueUpdate: { success: boolean; issue: LinearIssue | null };
+  }>(mutation, { id: issueId, input });
+
+  if (!result.issueUpdate.success || !result.issueUpdate.issue) {
+    throw new Error("Failed to close issue");
+  }
+
+  // Add close reason as comment if provided
+  if (reason) {
+    const commentMutation = `
+      mutation CreateComment($input: CommentCreateInput!) {
+        commentCreate(input: $input) {
+          success
+        }
+      }
+    `;
+    await client.request(commentMutation, {
+      input: {
+        issueId,
+        body: `Closed: ${reason}`,
+      },
+    });
+  }
+
+  const issue = linearToBdIssue(result.issueUpdate.issue);
+  cacheIssue(issue);
+  return issue;
+}
+
+/**
+ * Create relation between issues
+ */
+export async function createRelation(
+  issueId: string,
+  relatedIssueId: string,
+  type: "blocks" | "related"
+): Promise<void> {
+  const client = getGraphQLClient();
+
+  const mutation = `
+    mutation CreateRelation($input: IssueRelationCreateInput!) {
+      issueRelationCreate(input: $input) {
+        success
+      }
+    }
+  `;
+
+  const result = await client.request<{
+    issueRelationCreate: { success: boolean };
+  }>(mutation, {
+    input: {
+      issueId,
+      relatedIssueId,
+      type,
+    },
+  });
+
+  if (!result.issueRelationCreate.success) {
+    throw new Error("Failed to create relation");
+  }
+
+  // Cache the dependency
+  cacheDependency({
+    issue_id: issueId,
+    depends_on_id: relatedIssueId,
+    type,
+    created_at: new Date().toISOString(),
+    created_by: "user",
+  });
+}
+
+/**
+ * Verify API connection
+ */
+export async function verifyConnection(): Promise<{ userId: string; userName: string; teams: Array<{ id: string; key: string; name: string }> }> {
+  const client = getGraphQLClient();
+
+  const query = `
+    query Viewer {
+      viewer {
+        id
+        name
+      }
+      teams {
+        nodes {
+          id
+          key
+          name
+        }
+      }
+    }
+  `;
+
+  const result = await client.request<{
+    viewer: { id: string; name: string };
+    teams: { nodes: Array<{ id: string; key: string; name: string }> };
+  }>(query);
+
+  return {
+    userId: result.viewer.id,
+    userName: result.viewer.name,
+    teams: result.teams.nodes,
+  };
+}
