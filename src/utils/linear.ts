@@ -38,6 +38,7 @@ function linearToBdIssue(linear: LinearIssue): Issue & { linear_state_id: string
     created_at: linear.createdAt,
     updated_at: linear.updatedAt,
     closed_at: linear.completedAt || linear.canceledAt || undefined,
+    assignee: linear.assignee?.email || undefined,
     linear_state_id: linear.state.id,
   };
 }
@@ -379,6 +380,7 @@ export async function createIssue(params: {
   issueType: IssueType;
   teamId: string;
   parentId?: string;
+  assigneeId?: string;
 }): Promise<Issue> {
   const client = getGraphQLClient();
 
@@ -398,19 +400,23 @@ export async function createIssue(params: {
     }
   `;
 
+  const input: Record<string, unknown> = {
+    title: params.title,
+    description: params.description,
+    priority: priorityToLinear(params.priority),
+    teamId: params.teamId,
+    stateId,
+    labelIds: [repoLabelId, typeLabelId],
+    parentId: params.parentId,
+  };
+
+  if (params.assigneeId) {
+    input.assigneeId = params.assigneeId;
+  }
+
   const result = await client.request<{
     issueCreate: { success: boolean; issue: LinearIssue | null };
-  }>(mutation, {
-    input: {
-      title: params.title,
-      description: params.description,
-      priority: priorityToLinear(params.priority),
-      teamId: params.teamId,
-      stateId,
-      labelIds: [repoLabelId, typeLabelId],
-      parentId: params.parentId,
-    },
-  });
+  }>(mutation, { input });
 
   if (!result.issueCreate.success || !result.issueCreate.issue) {
     throw new Error("Failed to create issue");
@@ -431,6 +437,7 @@ export async function updateIssue(
     description?: string;
     status?: Issue["status"];
     priority?: Priority;
+    assigneeId?: string | null;
   },
   teamId: string
 ): Promise<Issue> {
@@ -443,6 +450,9 @@ export async function updateIssue(
   if (updates.priority !== undefined) input.priority = priorityToLinear(updates.priority);
   if (updates.status) {
     input.stateId = await getWorkflowStateId(teamId, updates.status);
+  }
+  if (updates.assigneeId !== undefined) {
+    input.assigneeId = updates.assigneeId;
   }
 
   const mutation = `
@@ -626,4 +636,52 @@ export async function verifyConnection(): Promise<{ userId: string; userName: st
     userName: result.viewer.name,
     teams: result.teams.nodes,
   };
+}
+
+/**
+ * Get current user (viewer) - for auto-assign
+ */
+export async function getViewer(): Promise<{ id: string; email: string; name: string }> {
+  const client = getGraphQLClient();
+
+  const query = `
+    query Viewer {
+      viewer {
+        id
+        email
+        name
+      }
+    }
+  `;
+
+  const result = await client.request<{
+    viewer: { id: string; email: string; name: string };
+  }>(query);
+
+  return result.viewer;
+}
+
+/**
+ * Find user by email
+ */
+export async function getUserByEmail(email: string): Promise<{ id: string; email: string; name: string } | null> {
+  const client = getGraphQLClient();
+
+  const query = `
+    query GetUser($email: String!) {
+      users(filter: { email: { eq: $email } }) {
+        nodes {
+          id
+          email
+          name
+        }
+      }
+    }
+  `;
+
+  const result = await client.request<{
+    users: { nodes: Array<{ id: string; email: string; name: string }> };
+  }>(query, { email });
+
+  return result.users.nodes[0] || null;
 }
