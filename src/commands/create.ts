@@ -4,7 +4,13 @@
 
 import { Command } from "commander";
 import { queueOutboxItem } from "../utils/database.js";
-import { createIssue, getTeamId, getViewer, getUserByEmail, createRelation } from "../utils/linear.js";
+import {
+  createIssue,
+  getTeamId,
+  getViewer,
+  getUserByEmail,
+  createRelation,
+} from "../utils/linear.js";
 import { formatIssueJson, formatIssueHuman, output } from "../utils/output.js";
 import { spawnWorkerIfNeeded } from "../utils/spawn-worker.js";
 import type { IssueType, Priority } from "../types.js";

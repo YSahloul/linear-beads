@@ -33,44 +33,43 @@ if (process.argv.includes("--worker")) {
     .then(() => process.exit(0))
     .catch(() => process.exit(1));
 } else {
+  // Add subcommands
+  program.addCommand(initCommand);
+  program.addCommand(authCommand);
+  program.addCommand(importCommand);
+  program.addCommand(listCommand);
+  program.addCommand(readyCommand);
+  program.addCommand(showCommand);
+  program.addCommand(createCommand);
+  program.addCommand(updateCommand);
+  program.addCommand(closeCommand);
+  program.addCommand(syncCommand);
+  program.addCommand(onboardCommand);
 
-// Add subcommands
-program.addCommand(initCommand);
-program.addCommand(authCommand);
-program.addCommand(importCommand);
-program.addCommand(listCommand);
-program.addCommand(readyCommand);
-program.addCommand(showCommand);
-program.addCommand(createCommand);
-program.addCommand(updateCommand);
-program.addCommand(closeCommand);
-program.addCommand(syncCommand);
-program.addCommand(onboardCommand);
-
-// Add whoami command for testing connection
-program
-  .command("whoami")
-  .description("Verify Linear API connection")
-  .option("-j, --json", "Output as JSON")
-  .action(async (options) => {
-    try {
-      const info = await verifyConnection();
-      if (options.json) {
-        console.log(JSON.stringify(info, null, 2));
-      } else {
-        console.log(`Authenticated as: ${info.userName}`);
-        console.log(`Teams: ${info.teams.map((t) => t.key).join(", ")}`);
+  // Add whoami command for testing connection
+  program
+    .command("whoami")
+    .description("Verify Linear API connection")
+    .option("-j, --json", "Output as JSON")
+    .action(async (options) => {
+      try {
+        const info = await verifyConnection();
+        if (options.json) {
+          console.log(JSON.stringify(info, null, 2));
+        } else {
+          console.log(`Authenticated as: ${info.userName}`);
+          console.log(`Teams: ${info.teams.map((t) => t.key).join(", ")}`);
+        }
+      } catch (error) {
+        console.error("Error:", error instanceof Error ? error.message : error);
+        process.exit(1);
       }
-    } catch (error) {
-      console.error("Error:", error instanceof Error ? error.message : error);
-      process.exit(1);
-    }
-  });
+    });
 
-// Handle cleanup on exit
-process.on("exit", () => {
-  closeDatabase();
-});
+  // Handle cleanup on exit
+  process.on("exit", () => {
+    closeDatabase();
+  });
 
   // Parse and run
   program.parse();
