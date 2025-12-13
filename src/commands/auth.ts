@@ -114,34 +114,37 @@ async function promptPassword(): Promise<string> {
     let password = "";
     
     const onData = (char: Buffer) => {
-      const ch = char.toString("utf8");
+      const str = char.toString("utf8");
       
-      switch (ch) {
-        case "\n":
-        case "\r":
-        case "\u0004": // Ctrl-D
-          (process.stdin as any).setRawMode(false);
-          process.stdin.removeListener("data", onData);
-          process.stdin.pause();
-          console.log(""); // New line
-          resolve(password);
-          break;
-        case "\u0003": // Ctrl-C
-          (process.stdin as any).setRawMode(false);
-          process.exit(1);
-          break;
-        case "\u007f": // Backspace
-        case "\b":
-          if (password.length > 0) {
-            password = password.slice(0, -1);
-            // Visual feedback: move cursor back, print space, move back again
-            process.stdout.write("\b \b");
-          }
-          break;
-        default:
-          password += ch;
-          process.stdout.write("*"); // Show asterisks
-          break;
+      // Handle each character (paste support)
+      for (const ch of str) {
+        switch (ch) {
+          case "\n":
+          case "\r":
+          case "\u0004": // Ctrl-D
+            (process.stdin as any).setRawMode(false);
+            process.stdin.removeListener("data", onData);
+            process.stdin.pause();
+            console.log(""); // New line
+            resolve(password);
+            return;
+          case "\u0003": // Ctrl-C
+            (process.stdin as any).setRawMode(false);
+            process.exit(1);
+            break;
+          case "\u007f": // Backspace
+          case "\b":
+            if (password.length > 0) {
+              password = password.slice(0, -1);
+              // Visual feedback: move cursor back, print space, move back again
+              process.stdout.write("\b \b");
+            }
+            break;
+          default:
+            password += ch;
+            process.stdout.write("*"); // Show asterisks
+            break;
+        }
       }
     };
     
