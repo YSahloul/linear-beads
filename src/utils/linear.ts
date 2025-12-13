@@ -330,8 +330,9 @@ export async function fetchIssues(teamId: string): Promise<Issue[]> {
     }
   }
 
-  // Fetch and cache relations separately to avoid complexity limits
-  await fetchRelations(teamId, result.team.issues.nodes.map((i) => i.identifier));
+  // Note: We don't fetch relations on bulk sync (too slow - O(n) network calls).
+  // Relations are fetched on-demand via `lb show <id> --sync`.
+  // This means `lb ready` may show blocked issues until their blockers are synced individually.
 
   updateLastSync();
   return issues;
