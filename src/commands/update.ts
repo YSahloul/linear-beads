@@ -4,7 +4,7 @@
 
 import { Command } from "commander";
 import { queueOutboxItem, getCachedIssue } from "../utils/database.js";
-import { updateIssue, getTeamId, fetchIssue } from "../utils/linear.js";
+import { updateIssue, getTeamId, fetchIssue, getViewer, getUserByEmail } from "../utils/linear.js";
 import { formatIssueJson, formatIssueHuman, output, outputError } from "../utils/output.js";
 import { spawnWorkerIfNeeded } from "../utils/spawn-worker.js";
 import type { Priority, IssueStatus } from "../types.js";
@@ -16,6 +16,8 @@ export const updateCommand = new Command("update")
   .option("-d, --description <desc>", "New description")
   .option("-s, --status <status>", "New status (open, in_progress, closed)")
   .option("-p, --priority <priority>", "New priority (0-4)")
+  .option("--assign <email>", "Assign to user (email or 'me')")
+  .option("--unassign", "Remove assignee")
   .option("-j, --json", "Output as JSON")
   .option("--sync", "Sync immediately (block on network)")
   .option("--team <team>", "Team key (overrides config)")
@@ -27,6 +29,7 @@ export const updateCommand = new Command("update")
         description?: string;
         status?: IssueStatus;
         priority?: Priority;
+        assigneeId?: string | null;
       } = {};
 
       if (options.title) updates.title = options.title;
@@ -50,6 +53,23 @@ export const updateCommand = new Command("update")
         updates.priority = priority;
       }
 
+      // Handle assignee
+      if (options.unassign) {
+        updates.assigneeId = null;
+      } else if (options.assign) {
+        if (options.assign === "me") {
+          const viewer = await getViewer();
+          updates.assigneeId = viewer.id;
+        } else {
+          const user = await getUserByEmail(options.assign);
+          if (!user) {
+            outputError(`User not found: ${options.assign}`);
+            process.exit(1);
+          }
+          updates.assigneeId = user.id;
+        }
+      }
+
       if (Object.keys(updates).length === 0) {
         outputError("No updates specified");
         process.exit(1);
@@ -67,10 +87,18 @@ export const updateCommand = new Command("update")
         }
       } else {
         // Queue mode: add to outbox and spawn background worker
-        queueOutboxItem("update", {
+        // For queue mode, pass flags for worker to resolve
+        const payload: Record<string, unknown> = {
           issueId: id,
           ...updates,
-        });
+        };
+        // Pass assign/unassign flags for worker to resolve
+        if (options.assign) payload.assign = options.assign;
+        if (options.unassign) payload.unassign = true;
+        // Remove assigneeId from payload - worker will resolve it
+        delete payload.assigneeId;
+        
+        queueOutboxItem("update", payload);
 
         // Spawn background worker if not already running
         spawnWorkerIfNeeded();
