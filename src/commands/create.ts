@@ -97,7 +97,10 @@ export const createCommand = new Command("create")
               const relationType = dep.type === "blocks" ? "blocks" : "related";
               await createRelation(issue.id, dep.targetId, relationType);
             } catch (error) {
-              console.error(`Warning: Failed to create ${dep.type} relation to ${dep.targetId}`);
+              console.error(
+                `Warning: Failed to create ${dep.type} relation to ${dep.targetId}:`,
+                error instanceof Error ? error.message : error
+              );
             }
           }
         }
