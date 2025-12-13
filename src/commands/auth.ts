@@ -97,53 +97,55 @@ export const authCommand = new Command("auth")
  * Prompt for password (masked input)
  */
 async function promptPassword(): Promise<string> {
-  // Use Bun.password if available, otherwise fallback
-  if (typeof Bun !== "undefined" && "password" in Bun) {
-    return await Bun.password("");
-  }
-
-  // Fallback for non-Bun environments
-  const { createInterface } = await import("readline");
-  const rl = createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
+  // Simple approach: use stdin with raw mode
   return new Promise((resolve) => {
-    // Disable echo
-    if (process.stdin.isTTY) {
-      (process.stdin as any).setRawMode(true);
+    if (!process.stdin.isTTY) {
+      // Not a TTY, just read normally
+      process.stdin.once("data", (data) => {
+        resolve(data.toString().trim());
+      });
+      return;
     }
 
+    // Disable echo
+    (process.stdin as any).setRawMode(true);
+    process.stdin.resume();
+
     let password = "";
-    process.stdin.on("data", (char) => {
+    
+    const onData = (char: Buffer) => {
       const ch = char.toString("utf8");
       
       switch (ch) {
         case "\n":
         case "\r":
         case "\u0004": // Ctrl-D
-          if (process.stdin.isTTY) {
-            (process.stdin as any).setRawMode(false);
-          }
+          (process.stdin as any).setRawMode(false);
+          process.stdin.removeListener("data", onData);
           process.stdin.pause();
           console.log(""); // New line
           resolve(password);
           break;
         case "\u0003": // Ctrl-C
+          (process.stdin as any).setRawMode(false);
           process.exit(1);
           break;
         case "\u007f": // Backspace
         case "\b":
           if (password.length > 0) {
             password = password.slice(0, -1);
+            // Visual feedback: move cursor back, print space, move back again
+            process.stdout.write("\b \b");
           }
           break;
         default:
           password += ch;
+          process.stdout.write("*"); // Show asterisks
           break;
       }
-    });
+    };
+    
+    process.stdin.on("data", onData);
   });
 }
 
