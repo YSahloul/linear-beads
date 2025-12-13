@@ -1,9 +1,8 @@
 # Beads (local issue tracking - not committed)
 .beads/
 
-# lb data (cache is local, issues.jsonl is tracked)
-.lb/*
-!.lb/issues.jsonl
+# lb data (all local)
+.lb/
 
 # Dependencies
 node_modules/
