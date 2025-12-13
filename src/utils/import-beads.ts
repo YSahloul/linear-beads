@@ -123,3 +123,52 @@ export function filterIssues(issues: BeadsIssue[], options: ImportOptions): Bead
 
   return filtered;
 }
+
+/**
+ * Check for duplicate issues in Linear
+ * Returns map of beads ID -> Linear ID for duplicates
+ */
+export async function checkDuplicates(
+  issues: BeadsIssue[],
+  teamId: string
+): Promise<Map<string, string>> {
+  const { getGraphQLClient } = await import("./graphql.js");
+  const client = getGraphQLClient();
+  const duplicates = new Map<string, string>();
+
+  for (const issue of issues) {
+    // Search Linear for issues with matching title
+    const query = `
+      query SearchIssues($teamId: String!, $title: String!) {
+        issues(filter: {
+          team: { id: { eq: $teamId } }
+          title: { containsIgnoreCase: $title }
+        }) {
+          nodes {
+            id
+            title
+          }
+        }
+      }
+    `;
+
+    try {
+      const result = await client.request<{
+        issues: { nodes: Array<{ id: string; title: string }> };
+      }>(query, { teamId, title: issue.title });
+
+      // Check for exact match (case-insensitive)
+      const exactMatch = result.issues.nodes.find(
+        (linear) => linear.title.toLowerCase() === issue.title.toLowerCase()
+      );
+
+      if (exactMatch) {
+        duplicates.set(issue.id, exactMatch.id);
+      }
+    } catch (error) {
+      console.warn(`Failed to check duplicates for ${issue.id}:`, error);
+    }
+  }
+
+  return duplicates;
+}
