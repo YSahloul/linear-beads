@@ -6,6 +6,7 @@ import { Command } from "commander";
 import { queueOutboxItem } from "../utils/database.js";
 import { createIssue, getTeamId } from "../utils/linear.js";
 import { formatIssueJson, formatIssueHuman, output } from "../utils/output.js";
+import { spawnWorkerIfNeeded } from "../utils/spawn-worker.js";
 import type { IssueType, Priority } from "../types.js";
 
 export const createCommand = new Command("create")
@@ -53,7 +54,7 @@ export const createCommand = new Command("create")
           output(formatIssueHuman(issue));
         }
       } else {
-        // Queue mode: add to outbox for later sync
+        // Queue mode: add to outbox and spawn background worker
         queueOutboxItem("create", {
           title,
           description: options.description,
@@ -62,7 +63,10 @@ export const createCommand = new Command("create")
           parentId: options.parent,
         });
 
-        // Return a placeholder response
+        // Spawn background worker if not already running
+        spawnWorkerIfNeeded();
+
+        // Return a placeholder response immediately
         const placeholder = {
           id: "pending",
           title,
@@ -78,7 +82,7 @@ export const createCommand = new Command("create")
           output(formatIssueJson(placeholder));
         } else {
           output(`Queued: ${title}`);
-          output("Run 'lb sync' to push to Linear");
+          output("Background sync started");
         }
       }
     } catch (error) {

@@ -6,6 +6,7 @@ import { Command } from "commander";
 import { queueOutboxItem, getCachedIssue } from "../utils/database.js";
 import { closeIssue, getTeamId, fetchIssue } from "../utils/linear.js";
 import { formatIssueJson, formatIssueHuman, output } from "../utils/output.js";
+import { spawnWorkerIfNeeded } from "../utils/spawn-worker.js";
 
 export const closeCommand = new Command("close")
   .description("Close an issue")
@@ -27,11 +28,14 @@ export const closeCommand = new Command("close")
           output(formatIssueHuman(issue));
         }
       } else {
-        // Queue mode: add to outbox for later sync
+        // Queue mode: add to outbox and spawn background worker
         queueOutboxItem("close", {
           issueId: id,
           reason: options.reason,
         });
+
+        // Spawn background worker if not already running
+        spawnWorkerIfNeeded();
 
         // Return cached issue with status updated
         let issue = getCachedIssue(id);
@@ -50,11 +54,11 @@ export const closeCommand = new Command("close")
             output(formatIssueJson(closed));
           } else {
             output(formatIssueHuman(closed));
-            output("(queued - run 'lb sync' to push to Linear)");
+            output("(queued - background sync started)");
           }
         } else {
           output(`Queued close for: ${id}`);
-          output("Run 'lb sync' to push to Linear");
+          output("Background sync started");
         }
       }
     } catch (error) {

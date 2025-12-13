@@ -6,6 +6,7 @@ import { Command } from "commander";
 import { queueOutboxItem, getCachedIssue } from "../utils/database.js";
 import { updateIssue, getTeamId, fetchIssue } from "../utils/linear.js";
 import { formatIssueJson, formatIssueHuman, output, outputError } from "../utils/output.js";
+import { spawnWorkerIfNeeded } from "../utils/spawn-worker.js";
 import type { Priority, IssueStatus } from "../types.js";
 
 export const updateCommand = new Command("update")
@@ -65,11 +66,14 @@ export const updateCommand = new Command("update")
           output(formatIssueHuman(issue));
         }
       } else {
-        // Queue mode: add to outbox for later sync
+        // Queue mode: add to outbox and spawn background worker
         queueOutboxItem("update", {
           issueId: id,
           ...updates,
         });
+
+        // Spawn background worker if not already running
+        spawnWorkerIfNeeded();
 
         // Return cached issue with updates applied
         let issue = getCachedIssue(id);
@@ -83,11 +87,11 @@ export const updateCommand = new Command("update")
             output(formatIssueJson(updated));
           } else {
             output(formatIssueHuman(updated));
-            output("(queued - run 'lb sync' to push to Linear)");
+            output("(queued - background sync started)");
           }
         } else {
           output(`Queued update for: ${id}`);
-          output("Run 'lb sync' to push to Linear");
+          output("Background sync started");
         }
       }
     } catch (error) {
