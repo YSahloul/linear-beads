@@ -30,7 +30,7 @@ export const authCommand = new Command("auth")
     // Main auth flow
     try {
       // Prompt for API key (masked)
-      console.log("Enter your Linear API key (get one at https://linear.app/settings/api):");
+      process.stdout.write("Linear API key: ");
       const apiKey = await promptPassword();
 
       if (!apiKey || apiKey.trim() === "") {
