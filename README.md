@@ -4,9 +4,12 @@ A CLI for tracking issues in Linear. Designed for AI agents and fast terminal wo
 
 ## Install
 
+**With bun:**
 ```bash
 bun install -g github:nikvdp/linear-beads
 ```
+
+**Or download a binary** from [releases](https://github.com/nikvdp/linear-beads/releases) and put it in your PATH.
 
 ## Setup
 

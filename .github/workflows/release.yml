@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - 'v[0-9]*'
   workflow_dispatch:
 
 permissions:
@@ -55,7 +55,6 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
 
     steps:
       - uses: actions/checkout@v4
@@ -88,3 +87,4 @@ jobs:
             release/lb-windows-x64.exe
             release/checksums.txt
           generate_release_notes: true
+          make_latest: true
