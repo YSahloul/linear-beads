@@ -20,10 +20,7 @@ import { closeDatabase } from "./utils/database.js";
 
 const program = new Command();
 
-program
-  .name("lb")
-  .description("Linear-native beads-style issue tracker")
-  .version("0.1.0");
+program.name("lb").description("Linear-native beads-style issue tracker").version("0.1.0");
 
 // Add subcommands
 program.addCommand(initCommand);

@@ -1,10 +1,10 @@
 /**
  * Integration tests for lb CLI
- * 
+ *
  * Requires:
  * - LINEAR_API_KEY environment variable
  * - LB_TEAM_KEY environment variable (or uses LIN as default)
- * 
+ *
  * Run with: bun test test/integration.test.ts
  */
 
@@ -17,18 +17,20 @@ const TEAM_KEY = process.env.LB_TEAM_KEY || "LIN";
 const TEST_PREFIX = `[test-${Date.now()}]`;
 
 // Helper to run lb commands
-async function lb(...args: string[]): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+async function lb(
+  ...args: string[]
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   const proc = Bun.spawn(["bun", "run", "src/cli.ts", ...args], {
     cwd: import.meta.dir + "/..",
     env: { ...process.env, LB_TEAM_KEY: TEAM_KEY },
     stdout: "pipe",
     stderr: "pipe",
   });
-  
+
   const stdout = await new Response(proc.stdout).text();
   const stderr = await new Response(proc.stderr).text();
   const exitCode = await proc.exited;
-  
+
   return { stdout, stderr, exitCode };
 }
 
@@ -42,13 +44,12 @@ async function lbJson<T>(...args: string[]): Promise<T> {
 }
 
 describe("lb CLI Integration Tests", () => {
-  
   beforeAll(async () => {
     // Verify API key is set
     if (!process.env.LINEAR_API_KEY) {
       throw new Error("LINEAR_API_KEY environment variable is required");
     }
-    
+
     // Clear any pending outbox items from previous runs
     await lb("sync");
   });
@@ -56,10 +57,10 @@ describe("lb CLI Integration Tests", () => {
   afterAll(async () => {
     // Sync first to push any pending items
     await lb("sync");
-    
+
     // Get all issues with our test prefix
     const allIssues = await lbJson<Array<{ id: string; title: string; status: string }>>("list");
-    
+
     // Close all test issues that aren't already closed
     for (const issue of allIssues) {
       if (issue.title.includes(TEST_PREFIX) && issue.status !== "closed") {
@@ -70,7 +71,7 @@ describe("lb CLI Integration Tests", () => {
         }
       }
     }
-    
+
     // Final sync to ensure cleanup is complete
     await lb("sync");
   });
@@ -94,7 +95,7 @@ describe("lb CLI Integration Tests", () => {
         teams: Array<{ key: string }>;
       }>("whoami");
 
-      const teamKeys = result.teams.map(t => t.key);
+      const teamKeys = result.teams.map((t) => t.key);
       expect(teamKeys).toContain(TEAM_KEY);
     });
   });
@@ -102,13 +103,15 @@ describe("lb CLI Integration Tests", () => {
   describe("create", () => {
     test("should create issue with --sync", async () => {
       const title = `${TEST_PREFIX} Create test`;
-      const result = await lbJson<Array<{
-        id: string;
-        title: string;
-        status: string;
-        priority: number;
-        issue_type: string;
-      }>>("create", title, "-t", "task", "-p", "2", "--sync");
+      const result = await lbJson<
+        Array<{
+          id: string;
+          title: string;
+          status: string;
+          priority: number;
+          issue_type: string;
+        }>
+      >("create", title, "-t", "task", "-p", "2", "--sync");
 
       expect(Array.isArray(result)).toBe(true);
       expect(result.length).toBe(1);
@@ -121,54 +124,64 @@ describe("lb CLI Integration Tests", () => {
 
     test("should queue issue without --sync", async () => {
       const title = `${TEST_PREFIX} Queued test`;
-      const result = await lbJson<Array<{
-        id: string;
-        title: string;
-      }>>("create", title, "-t", "bug", "-p", "1");
+      const result = await lbJson<
+        Array<{
+          id: string;
+          title: string;
+        }>
+      >("create", title, "-t", "bug", "-p", "1");
 
       expect(result[0].id).toBe("pending");
       expect(result[0].title).toBe(title);
-      
+
       // Push it immediately so we can track it
       await lb("sync");
     });
 
     test("should support bug type", async () => {
       const title = `${TEST_PREFIX} Type test: bug`;
-      const result = await lbJson<Array<{
-        id: string;
-        issue_type: string;
-      }>>("create", title, "-t", "bug", "--sync");
+      const result = await lbJson<
+        Array<{
+          id: string;
+          issue_type: string;
+        }>
+      >("create", title, "-t", "bug", "--sync");
 
       expect(result[0].issue_type).toBe("bug");
     });
 
     test("should support feature type", async () => {
       const title = `${TEST_PREFIX} Type test: feature`;
-      const result = await lbJson<Array<{
-        id: string;
-        issue_type: string;
-      }>>("create", title, "-t", "feature", "--sync");
+      const result = await lbJson<
+        Array<{
+          id: string;
+          issue_type: string;
+        }>
+      >("create", title, "-t", "feature", "--sync");
 
       expect(result[0].issue_type).toBe("feature");
     });
 
     test("should support priority 0 (critical)", async () => {
       const title = `${TEST_PREFIX} Priority test: 0`;
-      const result = await lbJson<Array<{
-        id: string;
-        priority: number;
-      }>>("create", title, "-p", "0", "--sync");
+      const result = await lbJson<
+        Array<{
+          id: string;
+          priority: number;
+        }>
+      >("create", title, "-p", "0", "--sync");
 
       expect(result[0].priority).toBe(0);
     });
 
     test("should support priority 4 (backlog)", async () => {
       const title = `${TEST_PREFIX} Priority test: 4`;
-      const result = await lbJson<Array<{
-        id: string;
-        priority: number;
-      }>>("create", title, "-p", "4", "--sync");
+      const result = await lbJson<
+        Array<{
+          id: string;
+          priority: number;
+        }>
+      >("create", title, "-p", "4", "--sync");
 
       expect(result[0].priority).toBe(4);
     });
@@ -194,22 +207,22 @@ describe("lb CLI Integration Tests", () => {
   describe("list", () => {
     test("should return array of issues", async () => {
       // Ensure we have at least one issue
-      await lbJson<Array<{ id: string }>>(
-        "create", `${TEST_PREFIX} List test`, "--sync"
-      );
+      await lbJson<Array<{ id: string }>>("create", `${TEST_PREFIX} List test`, "--sync");
 
       // Sync to refresh cache
       await lb("sync");
 
-      const result = await lbJson<Array<{
-        id: string;
-        title: string;
-        status: string;
-        priority: number;
-        issue_type: string;
-        dependency_count: number;
-        dependent_count: number;
-      }>>("list");
+      const result = await lbJson<
+        Array<{
+          id: string;
+          title: string;
+          status: string;
+          priority: number;
+          issue_type: string;
+          dependency_count: number;
+          dependent_count: number;
+        }>
+      >("list");
 
       expect(Array.isArray(result)).toBe(true);
       expect(result.length).toBeGreaterThan(0);
@@ -226,7 +239,7 @@ describe("lb CLI Integration Tests", () => {
 
     test("should filter by status", async () => {
       const result = await lbJson<Array<{ status: string }>>("list", "-s", "open");
-      
+
       for (const issue of result) {
         expect(issue.status).toBe("open");
       }
@@ -235,11 +248,13 @@ describe("lb CLI Integration Tests", () => {
 
   describe("ready", () => {
     test("should return only open unblocked issues", async () => {
-      const result = await lbJson<Array<{
-        id: string;
-        status: string;
-        dependencies: Array<unknown>;
-      }>>("ready");
+      const result = await lbJson<
+        Array<{
+          id: string;
+          status: string;
+          dependencies: Array<unknown>;
+        }>
+      >("ready");
 
       expect(Array.isArray(result)).toBe(true);
 
@@ -254,15 +269,19 @@ describe("lb CLI Integration Tests", () => {
     test("should update issue status", async () => {
       // Create an issue first
       const createResult = await lbJson<Array<{ id: string }>>(
-        "create", `${TEST_PREFIX} Update test`, "--sync"
+        "create",
+        `${TEST_PREFIX} Update test`,
+        "--sync"
       );
       const issueId = createResult[0].id;
 
       // Update to in_progress
-      const updateResult = await lbJson<Array<{
-        id: string;
-        status: string;
-      }>>("update", issueId, "-s", "in_progress", "--sync");
+      const updateResult = await lbJson<
+        Array<{
+          id: string;
+          status: string;
+        }>
+      >("update", issueId, "-s", "in_progress", "--sync");
 
       expect(updateResult[0].id).toBe(issueId);
       expect(updateResult[0].status).toBe("in_progress");
@@ -271,15 +290,21 @@ describe("lb CLI Integration Tests", () => {
     test("should update issue priority", async () => {
       // Create an issue first
       const createResult = await lbJson<Array<{ id: string }>>(
-        "create", `${TEST_PREFIX} Priority update test`, "-p", "3", "--sync"
+        "create",
+        `${TEST_PREFIX} Priority update test`,
+        "-p",
+        "3",
+        "--sync"
       );
       const issueId = createResult[0].id;
 
       // Update priority
-      const updateResult = await lbJson<Array<{
-        id: string;
-        priority: number;
-      }>>("update", issueId, "-p", "1", "--sync");
+      const updateResult = await lbJson<
+        Array<{
+          id: string;
+          priority: number;
+        }>
+      >("update", issueId, "-p", "1", "--sync");
 
       expect(updateResult[0].priority).toBe(1);
     });
@@ -289,16 +314,20 @@ describe("lb CLI Integration Tests", () => {
     test("should close issue with reason", async () => {
       // Create an issue first
       const createResult = await lbJson<Array<{ id: string }>>(
-        "create", `${TEST_PREFIX} Close test`, "--sync"
+        "create",
+        `${TEST_PREFIX} Close test`,
+        "--sync"
       );
       const issueId = createResult[0].id;
 
       // Close it
-      const closeResult = await lbJson<Array<{
-        id: string;
-        status: string;
-        closed_at: string;
-      }>>("close", issueId, "-r", "Test complete", "--sync");
+      const closeResult = await lbJson<
+        Array<{
+          id: string;
+          status: string;
+          closed_at: string;
+        }>
+      >("close", issueId, "-r", "Test complete", "--sync");
 
       expect(closeResult[0].id).toBe(issueId);
       expect(closeResult[0].status).toBe("closed");
@@ -310,7 +339,11 @@ describe("lb CLI Integration Tests", () => {
     test("should show issue details", async () => {
       // Create an issue first
       const createResult = await lbJson<Array<{ id: string }>>(
-        "create", `${TEST_PREFIX} Show test`, "-d", "Test description", "--sync"
+        "create",
+        `${TEST_PREFIX} Show test`,
+        "-d",
+        "Test description",
+        "--sync"
       );
       const issueId = createResult[0].id;
 
@@ -318,11 +351,13 @@ describe("lb CLI Integration Tests", () => {
       await lb("sync");
 
       // Show it
-      const showResult = await lbJson<Array<{
-        id: string;
-        title: string;
-        description: string;
-      }>>("show", issueId);
+      const showResult = await lbJson<
+        Array<{
+          id: string;
+          title: string;
+          description: string;
+        }>
+      >("show", issueId);
 
       expect(showResult[0].id).toBe(issueId);
       expect(showResult[0].title).toContain("Show test");
@@ -332,7 +367,7 @@ describe("lb CLI Integration Tests", () => {
   describe("JSON output format (bd compatibility)", () => {
     test("should use snake_case keys", async () => {
       const result = await lbJson<Array<Record<string, unknown>>>("list");
-      
+
       if (result.length > 0) {
         const issue = result[0];
         expect("issue_type" in issue).toBe(true);
@@ -354,11 +389,13 @@ describe("lb CLI Integration Tests", () => {
 
       // show returns array (even for single issue)
       const createResult = await lbJson<Array<{ id: string }>>(
-        "create", `${TEST_PREFIX} Array test`, "--sync"
+        "create",
+        `${TEST_PREFIX} Array test`,
+        "--sync"
       );
-      
+
       await lb("sync");
-      
+
       const showResult = await lbJson<unknown>("show", createResult[0].id);
       expect(Array.isArray(showResult)).toBe(true);
     });
@@ -369,7 +406,10 @@ describe("lb CLI Integration Tests", () => {
       // Create without --sync flag (queues and spawns worker)
       const title = `${TEST_PREFIX} Background sync test`;
       const createResult = await lbJson<Array<{ id: string; title: string }>>(
-        "create", title, "-t", "task"
+        "create",
+        title,
+        "-t",
+        "task"
       );
 
       // Should return immediately with pending ID
@@ -377,15 +417,15 @@ describe("lb CLI Integration Tests", () => {
       expect(createResult[0].title).toBe(title);
 
       // Wait for worker to process queue (give it a few seconds)
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      await new Promise((resolve) => setTimeout(resolve, 5000));
 
       // Sync to refresh cache from Linear
       await lb("sync");
 
       // Verify issue exists in Linear with real ID
       const listResult = await lbJson<Array<{ id: string; title: string }>>("list");
-      const found = listResult.find(issue => issue.title === title);
-      
+      const found = listResult.find((issue) => issue.title === title);
+
       expect(found).toBeDefined();
       expect(found?.id).not.toBe("pending");
       expect(found?.id).toMatch(/^LIN-\d+$/); // Real Linear ID
@@ -395,14 +435,14 @@ describe("lb CLI Integration Tests", () => {
   describe("beads import", () => {
     const beadsFile = import.meta.dir + "/../.beads-test/issues.jsonl";
     const importMapFile = import.meta.dir + "/../.lb/import-map.jsonl";
-    
+
     beforeAll(async () => {
       // Create mock beads data
       const { mkdirSync, writeFileSync } = await import("fs");
       const { dirname } = await import("path");
-      
+
       mkdirSync(dirname(beadsFile), { recursive: true });
-      
+
       const mockIssues = [
         {
           id: "bd-test-1",
@@ -421,9 +461,7 @@ describe("lb CLI Integration Tests", () => {
           priority: 2,
           issue_type: "feature",
           created_at: new Date().toISOString(),
-          dependencies: [
-            { type: "blocks", issue_id: "bd-test-1" }
-          ]
+          dependencies: [{ type: "blocks", issue_id: "bd-test-1" }],
         },
         {
           id: "bd-test-3",
@@ -435,20 +473,20 @@ describe("lb CLI Integration Tests", () => {
           closed_at: new Date().toISOString(),
         },
       ];
-      
-      writeFileSync(beadsFile, mockIssues.map(i => JSON.stringify(i)).join("\n"));
+
+      writeFileSync(beadsFile, mockIssues.map((i) => JSON.stringify(i)).join("\n"));
     });
 
     afterAll(async () => {
       // Cleanup
       const { unlinkSync, rmSync, existsSync } = await import("fs");
       const { dirname } = await import("path");
-      
+
       if (existsSync(beadsFile)) {
         unlinkSync(beadsFile);
         rmSync(dirname(beadsFile), { recursive: true, force: true });
       }
-      
+
       if (existsSync(importMapFile)) {
         unlinkSync(importMapFile);
       }
@@ -457,7 +495,7 @@ describe("lb CLI Integration Tests", () => {
     test("should parse beads JSONL", async () => {
       const { parseBeadsJsonl } = await import("../src/utils/import-beads.js");
       const issues = parseBeadsJsonl(beadsFile);
-      
+
       expect(issues.length).toBe(3);
       expect(issues[0].id).toBe("bd-test-1");
       expect(issues[1].dependencies).toBeDefined();
@@ -467,52 +505,54 @@ describe("lb CLI Integration Tests", () => {
       const { parseBeadsJsonl, filterIssues } = await import("../src/utils/import-beads.js");
       const issues = parseBeadsJsonl(beadsFile);
       const filtered = filterIssues(issues, { includeClosed: false });
-      
+
       expect(filtered.length).toBe(2);
-      expect(filtered.every(i => i.status !== "closed")).toBe(true);
+      expect(filtered.every((i) => i.status !== "closed")).toBe(true);
     });
 
     test("should check for duplicates", async () => {
-      const { parseBeadsJsonl, filterIssues, checkDuplicates } = await import("../src/utils/import-beads.js");
+      const { parseBeadsJsonl, filterIssues, checkDuplicates } =
+        await import("../src/utils/import-beads.js");
       const { getTeamId } = await import("../src/utils/linear.js");
-      
+
       const issues = parseBeadsJsonl(beadsFile);
       const filtered = filterIssues(issues, { includeClosed: false });
       const teamId = await getTeamId();
-      
+
       const duplicates = await checkDuplicates(filtered, teamId);
-      
+
       // Should be a Map
       expect(duplicates instanceof Map).toBe(true);
     });
 
     test("should import issues and create mapping", async () => {
-      const { parseBeadsJsonl, filterIssues, createImportedIssues, saveImportMapping } = await import("../src/utils/import-beads.js");
+      const { parseBeadsJsonl, filterIssues, createImportedIssues, saveImportMapping } =
+        await import("../src/utils/import-beads.js");
       const { getTeamId } = await import("../src/utils/linear.js");
       const { dirname } = await import("path");
-      
+
       const issues = parseBeadsJsonl(beadsFile);
       const filtered = filterIssues(issues, { includeClosed: false });
       const teamId = await getTeamId();
-      
+
       // Import issues
       const mapping = await createImportedIssues(filtered, teamId);
-      
+
       expect(mapping.size).toBeGreaterThan(0);
       expect(mapping.has("bd-test-1")).toBe(true);
-      
+
       // Save mapping
       const { mkdirSync, existsSync } = await import("fs");
       mkdirSync(dirname(importMapFile), { recursive: true });
       saveImportMapping(mapping, importMapFile);
-      
+
       expect(existsSync(importMapFile)).toBe(true);
-      
+
       // Read and verify mapping format
       const { readFileSync } = await import("fs");
       const content = readFileSync(importMapFile, "utf-8");
-      const lines = content.split("\n").filter(l => l.trim());
-      
+      const lines = content.split("\n").filter((l) => l.trim());
+
       expect(lines.length).toBe(mapping.size);
       const firstLine = JSON.parse(lines[0]);
       expect(firstLine.beads_id).toBeDefined();

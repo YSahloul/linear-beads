@@ -24,16 +24,12 @@ export const readyCommand = new Command("ready")
 
       // Filter to open issues that are not blocked
       const blockedIds = getBlockedIssueIds();
-      let readyIssues = allIssues.filter(
-        (i) => i.status === "open" && !blockedIds.has(i.id)
-      );
+      let readyIssues = allIssues.filter((i) => i.status === "open" && !blockedIds.has(i.id));
 
       // Filter by assignee unless --all
       if (!options.all) {
         const viewer = await getViewer();
-        readyIssues = readyIssues.filter(
-          (i) => !i.assignee || i.assignee === viewer.email
-        );
+        readyIssues = readyIssues.filter((i) => !i.assignee || i.assignee === viewer.email);
       }
 
       // Sort by priority, then updated_at

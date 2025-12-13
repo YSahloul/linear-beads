@@ -9,7 +9,14 @@ import {
   isCacheStale,
   clearCache,
 } from "./database.js";
-import { fetchIssues, getTeamId, createIssue, updateIssue, closeIssue, createRelation } from "./linear.js";
+import {
+  fetchIssues,
+  getTeamId,
+  createIssue,
+  updateIssue,
+  closeIssue,
+  createRelation,
+} from "./linear.js";
 import { exportToJsonl } from "./jsonl.js";
 import type { Issue, IssueType, Priority } from "../types.js";
 
@@ -114,10 +121,7 @@ export async function fullSync(teamKey?: string): Promise<{
 /**
  * Check if sync is needed and optionally perform it
  */
-export async function ensureFresh(
-  teamKey?: string,
-  force: boolean = false
-): Promise<boolean> {
+export async function ensureFresh(teamKey?: string, force: boolean = false): Promise<boolean> {
   if (!force && !isCacheStale()) {
     return false; // Cache is fresh
   }

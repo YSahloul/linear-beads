@@ -5,7 +5,14 @@
 
 import { writePidFile, removePidFile } from "./pid-manager.js";
 import { getPendingOutboxItems, removeOutboxItem, updateOutboxItemError } from "./database.js";
-import { getTeamId, createIssue, updateIssue, closeIssue, createRelation, fetchIssues } from "./linear.js";
+import {
+  getTeamId,
+  createIssue,
+  updateIssue,
+  closeIssue,
+  createRelation,
+  fetchIssues,
+} from "./linear.js";
 import { exportToJsonl } from "./jsonl.js";
 import type { Issue, IssueType, Priority } from "../types.js";
 
@@ -19,7 +26,7 @@ async function processOutbox(): Promise<void> {
   try {
     while (true) {
       const items = getPendingOutboxItems();
-      
+
       if (items.length === 0) {
         // Queue is empty - we're done
         break;
@@ -37,7 +44,7 @@ async function processOutbox(): Promise<void> {
           const errorMsg = error instanceof Error ? error.message : String(error);
           console.error(`Failed to process outbox item ${item.id}:`, errorMsg);
           updateOutboxItemError(item.id, errorMsg);
-          
+
           // Brief pause before continuing to next item
           await sleep(1000);
         }
@@ -76,7 +83,7 @@ async function processOutboxItem(item: any, teamId: string): Promise<void> {
       });
       break;
     }
-    
+
     case "update": {
       const payload = item.payload as {
         issueId: string;
@@ -88,7 +95,7 @@ async function processOutboxItem(item: any, teamId: string): Promise<void> {
       await updateIssue(payload.issueId, payload, teamId);
       break;
     }
-    
+
     case "close": {
       const payload = item.payload as {
         issueId: string;
@@ -97,7 +104,7 @@ async function processOutboxItem(item: any, teamId: string): Promise<void> {
       await closeIssue(payload.issueId, teamId, payload.reason);
       break;
     }
-    
+
     case "create_relation": {
       const payload = item.payload as {
         issueId: string;
@@ -107,7 +114,7 @@ async function processOutboxItem(item: any, teamId: string): Promise<void> {
       await createRelation(payload.issueId, payload.relatedIssueId, payload.type);
       break;
     }
-    
+
     default:
       throw new Error(`Unknown operation: ${item.operation}`);
   }
@@ -117,7 +124,7 @@ async function processOutboxItem(item: any, teamId: string): Promise<void> {
  * Sleep for ms milliseconds
  */
 function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**

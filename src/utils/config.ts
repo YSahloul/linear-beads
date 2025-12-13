@@ -76,10 +76,7 @@ function loadConfig(): Config {
 
   // 2. Try .lb.json in current dir or git root (overrides global)
   const gitRoot = findGitRoot();
-  const configPaths = [
-    ".lb.json",
-    ".lb/config.json",
-  ];
+  const configPaths = [".lb.json", ".lb/config.json"];
   if (gitRoot) {
     configPaths.push(join(gitRoot, ".lb.json"));
     configPaths.push(join(gitRoot, ".lb", "config.json"));
@@ -130,10 +127,7 @@ loadedConfig = loadConfig();
 /**
  * Get a config option
  */
-export function getOption<K extends keyof Config>(
-  key: K,
-  cliValue?: Config[K]
-): Config[K] {
+export function getOption<K extends keyof Config>(key: K, cliValue?: Config[K]): Config[K] {
   return cliValue ?? loadedConfig[key];
 }
 

@@ -18,7 +18,7 @@ export function getDatabase(): Database {
   if (!db) {
     const dbPath = getDbPath();
     const dbDir = dirname(dbPath);
-    
+
     // Ensure directory exists
     if (!existsSync(dbDir)) {
       mkdirSync(dbDir, { recursive: true });
@@ -103,16 +103,16 @@ function initSchema(db: Database): void {
  */
 export function isCacheStale(ttlSeconds: number = 120): boolean {
   const db = getDatabase();
-  const row = db
-    .query("SELECT value FROM metadata WHERE key = 'last_sync'")
-    .get() as { value: string } | null;
-  
+  const row = db.query("SELECT value FROM metadata WHERE key = 'last_sync'").get() as {
+    value: string;
+  } | null;
+
   if (!row) return true;
 
   const lastSync = new Date(row.value);
   const now = new Date();
   const diffSeconds = (now.getTime() - lastSync.getTime()) / 1000;
-  
+
   return diffSeconds > ttlSeconds;
 }
 
@@ -121,9 +121,7 @@ export function isCacheStale(ttlSeconds: number = 120): boolean {
  */
 export function updateLastSync(): void {
   const db = getDatabase();
-  db.run(
-    "INSERT OR REPLACE INTO metadata (key, value) VALUES ('last_sync', datetime('now'))"
-  );
+  db.run("INSERT OR REPLACE INTO metadata (key, value) VALUES ('last_sync', datetime('now'))");
 }
 
 /**
@@ -131,7 +129,8 @@ export function updateLastSync(): void {
  */
 export function cacheIssue(issue: Issue & { linear_state_id?: string }): void {
   const db = getDatabase();
-  db.run(`
+  db.run(
+    `
     INSERT OR REPLACE INTO issues 
     (id, identifier, title, description, status, priority, issue_type, created_at, updated_at, closed_at, assignee, linear_state_id, cached_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
@@ -191,8 +190,11 @@ export function cacheIssues(issues: Array<Issue & { linear_state_id?: string }>)
  */
 export function getCachedIssue(id: string): Issue | null {
   const db = getDatabase();
-  const row = db.query("SELECT * FROM issues WHERE id = ? OR identifier = ?").get(id, id) as Record<string, unknown> | null;
-  
+  const row = db.query("SELECT * FROM issues WHERE id = ? OR identifier = ?").get(id, id) as Record<
+    string,
+    unknown
+  > | null;
+
   if (!row) return null;
 
   return {
@@ -214,8 +216,10 @@ export function getCachedIssue(id: string): Issue | null {
  */
 export function getCachedIssues(): Issue[] {
   const db = getDatabase();
-  const rows = db.query("SELECT * FROM issues ORDER BY updated_at DESC").all() as Array<Record<string, unknown>>;
-  
+  const rows = db.query("SELECT * FROM issues ORDER BY updated_at DESC").all() as Array<
+    Record<string, unknown>
+  >;
+
   return rows.map((row) => ({
     id: row.id as string,
     title: row.title as string,
@@ -235,11 +239,14 @@ export function getCachedIssues(): Issue[] {
  */
 export function cacheDependency(dep: Dependency): void {
   const db = getDatabase();
-  db.run(`
+  db.run(
+    `
     INSERT OR REPLACE INTO dependencies 
     (issue_id, depends_on_id, type, created_at, created_by)
     VALUES (?, ?, ?, ?, ?)
-  `, [dep.issue_id, dep.depends_on_id, dep.type, dep.created_at, dep.created_by]);
+  `,
+    [dep.issue_id, dep.depends_on_id, dep.type, dep.created_at, dep.created_by]
+  );
 }
 
 /**
@@ -247,8 +254,10 @@ export function cacheDependency(dep: Dependency): void {
  */
 export function getDependencies(issueId: string): Dependency[] {
   const db = getDatabase();
-  const rows = db.query("SELECT * FROM dependencies WHERE issue_id = ?").all(issueId) as Array<Record<string, unknown>>;
-  
+  const rows = db.query("SELECT * FROM dependencies WHERE issue_id = ?").all(issueId) as Array<
+    Record<string, unknown>
+  >;
+
   return rows.map((row) => ({
     issue_id: row.issue_id as string,
     depends_on_id: row.depends_on_id as string,
@@ -263,8 +272,10 @@ export function getDependencies(issueId: string): Dependency[] {
  */
 export function getDependents(issueId: string): Dependency[] {
   const db = getDatabase();
-  const rows = db.query("SELECT * FROM dependencies WHERE depends_on_id = ?").all(issueId) as Array<Record<string, unknown>>;
-  
+  const rows = db.query("SELECT * FROM dependencies WHERE depends_on_id = ?").all(issueId) as Array<
+    Record<string, unknown>
+  >;
+
   return rows.map((row) => ({
     issue_id: row.issue_id as string,
     depends_on_id: row.depends_on_id as string,
@@ -280,12 +291,16 @@ export function getDependents(issueId: string): Dependency[] {
 export function getBlockedIssueIds(): Set<string> {
   const db = getDatabase();
   // An issue is blocked if it has a "blocks" dependency on an open issue
-  const rows = db.query(`
+  const rows = db
+    .query(
+      `
     SELECT DISTINCT d.issue_id
     FROM dependencies d
     JOIN issues i ON d.depends_on_id = i.id
     WHERE d.type = 'blocks' AND i.status != 'closed'
-  `).all() as Array<{ issue_id: string }>;
+  `
+    )
+    .all() as Array<{ issue_id: string }>;
 
   return new Set(rows.map((r) => r.issue_id));
 }
@@ -298,10 +313,13 @@ export function queueOutboxItem(
   payload: Record<string, unknown>
 ): number {
   const db = getDatabase();
-  db.run(`
+  db.run(
+    `
     INSERT INTO outbox (operation, payload)
     VALUES (?, ?)
-  `, [operation, JSON.stringify(payload)]);
+  `,
+    [operation, JSON.stringify(payload)]
+  );
 
   // Get last insert rowid
   const result = db.query("SELECT last_insert_rowid() as id").get() as { id: number };
@@ -313,7 +331,9 @@ export function queueOutboxItem(
  */
 export function getPendingOutboxItems(): OutboxItem[] {
   const db = getDatabase();
-  const rows = db.query("SELECT * FROM outbox ORDER BY id ASC").all() as Array<Record<string, unknown>>;
+  const rows = db.query("SELECT * FROM outbox ORDER BY id ASC").all() as Array<
+    Record<string, unknown>
+  >;
 
   return rows.map((row) => ({
     id: row.id as number,
@@ -338,11 +358,14 @@ export function removeOutboxItem(id: number): void {
  */
 export function updateOutboxItemError(id: number, error: string): void {
   const db = getDatabase();
-  db.run(`
+  db.run(
+    `
     UPDATE outbox 
     SET retry_count = retry_count + 1, last_error = ?
     WHERE id = ?
-  `, [error, id]);
+  `,
+    [error, id]
+  );
 }
 
 /**
@@ -363,10 +386,13 @@ export function clearCache(): void {
  */
 export function cacheLabel(id: string, name: string, teamId?: string): void {
   const db = getDatabase();
-  db.run(`
+  db.run(
+    `
     INSERT OR REPLACE INTO labels (id, name, team_id)
     VALUES (?, ?, ?)
-  `, [id, name, teamId || null]);
+  `,
+    [id, name, teamId || null]
+  );
 }
 
 /**

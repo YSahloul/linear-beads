@@ -34,7 +34,7 @@ export const updateCommand = new Command("update")
 
       if (options.title) updates.title = options.title;
       if (options.description !== undefined) updates.description = options.description;
-      
+
       if (options.status) {
         const validStatuses = ["open", "in_progress", "closed"];
         if (!validStatuses.includes(options.status)) {
@@ -97,7 +97,7 @@ export const updateCommand = new Command("update")
         if (options.unassign) payload.unassign = true;
         // Remove assigneeId from payload - worker will resolve it
         delete payload.assigneeId;
-        
+
         queueOutboxItem("update", payload);
 
         // Spawn background worker if not already running

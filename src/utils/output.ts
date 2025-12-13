@@ -111,7 +111,9 @@ export function formatIssueHuman(issue: Issue): string {
     lines.push(`  Assignee: ${issue.assignee}`);
   }
   if (issue.description) {
-    lines.push(`  Description: ${issue.description.slice(0, 100)}${issue.description.length > 100 ? "..." : ""}`);
+    lines.push(
+      `  Description: ${issue.description.slice(0, 100)}${issue.description.length > 100 ? "..." : ""}`
+    );
   }
   return lines.join("\n");
 }

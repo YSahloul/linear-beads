@@ -27,7 +27,7 @@ import {
  */
 function linearToBdIssue(linear: LinearIssue): Issue & { linear_state_id: string } {
   const labels = linear.labels.nodes.map((l) => l.name);
-  
+
   return {
     id: linear.identifier,
     title: linear.title,
@@ -250,21 +250,14 @@ export async function getTeamId(teamKey?: string): Promise<string> {
   }
 
   // Multiple teams - ask user to specify
-  const teamList = result.teams.nodes
-    .map((t) => `  - ${t.name} (${t.key})`)
-    .join("\n");
-  throw new Error(
-    `Multiple teams found. Please set LB_TEAM_KEY or use --team flag:\n${teamList}`
-  );
+  const teamList = result.teams.nodes.map((t) => `  - ${t.name} (${t.key})`).join("\n");
+  throw new Error(`Multiple teams found. Please set LB_TEAM_KEY or use --team flag:\n${teamList}`);
 }
 
 /**
  * Get workflow state ID for a status
  */
-export async function getWorkflowStateId(
-  teamId: string,
-  status: Issue["status"]
-): Promise<string> {
+export async function getWorkflowStateId(teamId: string, status: Issue["status"]): Promise<string> {
   const client = getGraphQLClient();
   const stateType = statusToLinearState(status);
 
@@ -320,10 +313,10 @@ export async function fetchIssues(teamId: string): Promise<Issue[]> {
   }>(query, { teamId, labelName: repoLabel });
 
   const issues = result.team.issues.nodes.map(linearToBdIssue);
-  
+
   // Cache issues
   cacheIssues(issues);
-  
+
   // Cache parent-child relations from the basic query
   for (const linear of result.team.issues.nodes) {
     if (linear.parent) {
@@ -482,11 +475,7 @@ export async function updateIssue(
 /**
  * Close issue in Linear
  */
-export async function closeIssue(
-  issueId: string,
-  teamId: string,
-  reason?: string
-): Promise<Issue> {
+export async function closeIssue(issueId: string, teamId: string, reason?: string): Promise<Issue> {
   const client = getGraphQLClient();
   const stateId = await getWorkflowStateId(teamId, "closed");
 
@@ -607,7 +596,11 @@ export async function addComment(issueId: string, body: string): Promise<void> {
 /**
  * Verify API connection
  */
-export async function verifyConnection(): Promise<{ userId: string; userName: string; teams: Array<{ id: string; key: string; name: string }> }> {
+export async function verifyConnection(): Promise<{
+  userId: string;
+  userName: string;
+  teams: Array<{ id: string; key: string; name: string }>;
+}> {
   const client = getGraphQLClient();
 
   const query = `
@@ -664,7 +657,9 @@ export async function getViewer(): Promise<{ id: string; email: string; name: st
 /**
  * Find user by email
  */
-export async function getUserByEmail(email: string): Promise<{ id: string; email: string; name: string } | null> {
+export async function getUserByEmail(
+  email: string
+): Promise<{ id: string; email: string; name: string } | null> {
   const client = getGraphQLClient();
 
   const query = `

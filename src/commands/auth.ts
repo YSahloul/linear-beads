@@ -78,14 +78,16 @@ export const authCommand = new Command("auth")
 
       // Show success
       output(`\nAuthenticated as: ${userInfo.userName}`);
-      const teamsList = userInfo.teams.map(t => `${t.name} (${t.key})`).join(", ");
+      const teamsList = userInfo.teams.map((t) => `${t.name} (${t.key})`).join(", ");
       output(`Teams: ${teamsList}`);
       output(`\nConfig saved to ${configPath}`);
-      
+
       if (userInfo.teams.length === 1 && !options.team) {
         output(`Team auto-detected: ${userInfo.teams[0].key}`);
       } else if (userInfo.teams.length > 1 && !options.team) {
-        output("\nNote: You have multiple teams. Use --team <key> to set a default, or it will be auto-detected per command.");
+        output(
+          "\nNote: You have multiple teams. Use --team <key> to set a default, or it will be auto-detected per command."
+        );
       }
     } catch (error) {
       console.error("Error:", error instanceof Error ? error.message : error);
@@ -112,10 +114,10 @@ async function promptPassword(): Promise<string> {
     process.stdin.resume();
 
     let password = "";
-    
+
     const onData = (char: Buffer) => {
       const str = char.toString("utf8");
-      
+
       // Handle each character (paste support)
       for (const ch of str) {
         switch (ch) {
@@ -147,7 +149,7 @@ async function promptPassword(): Promise<string> {
         }
       }
     };
-    
+
     process.stdin.on("data", onData);
   });
 }
@@ -162,25 +164,22 @@ function showConfig(): void {
   // Determine source (check in priority order)
   let source = "not configured";
   let apiKey = config.api_key;
-  
+
   if (process.env.LINEAR_API_KEY) {
     source = "environment variable (LINEAR_API_KEY)";
   } else {
     // Check for project config files
-    const projectConfigs = [
-      ".lb.json",
-      ".lb/config.json"
-    ];
-    
+    const projectConfigs = [".lb.json", ".lb/config.json"];
+
     // Also check git root
     const gitRoot = findGitRoot();
     if (gitRoot) {
       projectConfigs.push(join(gitRoot, ".lb.json"));
       projectConfigs.push(join(gitRoot, ".lb", "config.json"));
     }
-    
-    const hasProjectConfig = projectConfigs.some(p => existsSync(p));
-    
+
+    const hasProjectConfig = projectConfigs.some((p) => existsSync(p));
+
     if (hasProjectConfig) {
       source = "project config (.lb.json)";
     } else if (existsSync(globalConfigPath)) {
@@ -189,7 +188,7 @@ function showConfig(): void {
   }
 
   output(`Config source: ${source}`);
-  
+
   if (apiKey) {
     output(`API key: ${maskKey(apiKey)}`);
   } else {
@@ -223,7 +222,7 @@ function findGitRoot(): string | null {
  */
 function clearConfig(): void {
   const globalConfigPath = getGlobalConfigPath();
-  
+
   if (!existsSync(globalConfigPath)) {
     output("No global config to clear");
     return;

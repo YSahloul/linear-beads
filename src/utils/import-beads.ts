@@ -48,13 +48,13 @@ export function parseBeadsJsonl(path: string): BeadsIssue[] {
   }
 
   const content = readFileSync(path, "utf-8");
-  const lines = content.split("\n").filter(line => line.trim());
+  const lines = content.split("\n").filter((line) => line.trim());
   const issues: BeadsIssue[] = [];
 
   for (let i = 0; i < lines.length; i++) {
     try {
       const issue = JSON.parse(lines[i]) as BeadsIssue;
-      
+
       // Validate required fields
       if (!issue.id || !issue.title) {
         console.warn(`Line ${i + 1}: Missing required fields (id, title)`);
@@ -63,7 +63,10 @@ export function parseBeadsJsonl(path: string): BeadsIssue[] {
 
       issues.push(issue);
     } catch (error) {
-      console.warn(`Line ${i + 1}: Failed to parse JSON:`, error instanceof Error ? error.message : error);
+      console.warn(
+        `Line ${i + 1}: Failed to parse JSON:`,
+        error instanceof Error ? error.message : error
+      );
     }
   }
 
@@ -110,12 +113,12 @@ export function filterIssues(issues: BeadsIssue[], options: ImportOptions): Bead
 
   // Filter by status (skip closed unless --include-closed)
   if (!options.includeClosed) {
-    filtered = filtered.filter(issue => issue.status !== "closed");
+    filtered = filtered.filter((issue) => issue.status !== "closed");
   }
 
   // Filter by date (--since)
   if (options.since) {
-    filtered = filtered.filter(issue => {
+    filtered = filtered.filter((issue) => {
       const createdAt = new Date(issue.created_at);
       return createdAt >= options.since!;
     });
@@ -208,7 +211,10 @@ export async function createImportedIssues(
 
       console.log(`✓ ${issue.id} → ${created.id}: "${issue.title}"`);
     } catch (error) {
-      console.error(`✗ Failed to import ${issue.id}:`, error instanceof Error ? error.message : error);
+      console.error(
+        `✗ Failed to import ${issue.id}:`,
+        error instanceof Error ? error.message : error
+      );
     }
   }
 
@@ -250,7 +256,7 @@ export async function createImportedDependencies(
     if (issue.dependencies) {
       for (const dep of issue.dependencies) {
         const depLinearId = mapping.get(dep.issue_id);
-        
+
         if (!depLinearId) {
           console.warn(`  Skipping dependency ${dep.issue_id} (not in mapping)`);
           continue;
@@ -279,19 +285,18 @@ export async function createImportedDependencies(
 /**
  * Save import mapping to file
  */
-export function saveImportMapping(
-  mapping: Map<string, string>,
-  outputPath: string
-): void {
+export function saveImportMapping(mapping: Map<string, string>, outputPath: string): void {
   const { writeFileSync, renameSync } = require("fs");
   const lines: string[] = [];
 
   for (const [beadsId, linearId] of mapping.entries()) {
-    lines.push(JSON.stringify({
-      beads_id: beadsId,
-      linear_id: linearId,
-      imported_at: new Date().toISOString(),
-    }));
+    lines.push(
+      JSON.stringify({
+        beads_id: beadsId,
+        linear_id: linearId,
+        imported_at: new Date().toISOString(),
+      })
+    );
   }
 
   // Atomic write

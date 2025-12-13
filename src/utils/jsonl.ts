@@ -27,11 +27,11 @@ export function exportToJsonl(): void {
 
     // Build JSONL lines
     const lines: string[] = [];
-    
+
     for (const issue of issues) {
       // Get dependencies for this issue
       const deps = getDependencies(issue.id);
-      
+
       // Build issue object (same format as bd)
       const issueObj: Record<string, unknown> = {
         id: issue.id,
@@ -65,6 +65,9 @@ export function exportToJsonl(): void {
     renameSync(tmpPath, jsonlPath);
   } catch (error) {
     // Don't fail sync if export fails, just log
-    console.error("Warning: Failed to export JSONL:", error instanceof Error ? error.message : error);
+    console.error(
+      "Warning: Failed to export JSONL:",
+      error instanceof Error ? error.message : error
+    );
   }
 }

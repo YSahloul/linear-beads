@@ -20,7 +20,7 @@ export const initCommand = new Command("init")
       // Check if already initialized
       const dbPath = getDbPath();
       const lbDir = dirname(dbPath);
-      
+
       if (existsSync(lbDir) && !options.force) {
         output("✓ Already initialized (.lb/ exists)");
         output("\nUse --force to re-initialize");

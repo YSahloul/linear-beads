@@ -15,10 +15,16 @@ export const syncCommand = new Command("sync")
       const result = await fullSync(options.team);
 
       if (options.json) {
-        output(JSON.stringify({
-          pushed: result.pushed,
-          pulled: result.pulled,
-        }, null, 2));
+        output(
+          JSON.stringify(
+            {
+              pushed: result.pushed,
+              pulled: result.pulled,
+            },
+            null,
+            2
+          )
+        );
       } else {
         if (result.pushed.success > 0 || result.pushed.failed > 0) {
           output(`Pushed: ${result.pushed.success} succeeded, ${result.pushed.failed} failed`);
