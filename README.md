@@ -10,6 +10,12 @@
 - **Repo scoping** - Issues filtered by `repo:name` label
 - **Background sync** - Automatic async push to Linear (fire-and-forget)
 
+## Requirements
+
+- [Bun](https://bun.sh) runtime
+- Linear account with API key ([get one here](https://linear.app/settings/api))
+- Network access (for syncing to Linear)
+
 ## Installation
 
 ```bash
@@ -28,21 +34,31 @@ npm link
 
 ## Configuration
 
-Set your Linear API key:
+**Required:** Set your Linear API key:
 
 ```bash
 export LINEAR_API_KEY=lin_api_xxxxx
-export LB_TEAM_KEY=MYTEAM  # Optional: auto-detected if you have only one team
+```
+
+**Optional:** Team key (only needed if you have multiple Linear teams):
+
+```bash
+export LB_TEAM_KEY=MYTEAM  # Omit this to auto-detect your team
 ```
 
 Or create `.lb.json`:
 
 ```json
 {
-  "api_key": "lin_api_xxxxx",
-  "team_key": "MYTEAM"  // Optional: auto-detected for single-team users
+  "api_key": "lin_api_xxxxx"
+  // "team_key": "MYTEAM"  <- Optional, only for multi-team users
 }
 ```
+
+**How team detection works:**
+- If you have only 1 team → Auto-selected (you'll see "Auto-detected team: TeamName")
+- If you have multiple teams → You must set `LB_TEAM_KEY` or use `--team` flag
+- Team key is your Linear team's short code (e.g., "LIN", "ENG", "PROD")
 
 ## Quick Start
 
@@ -73,15 +89,15 @@ lb sync
 
 | Command | Description |
 |---------|-------------|
-| `lb list` | List all issues |
-| `lb ready` | List unblocked issues |
+| `lb whoami` | Verify API connection and show your teams |
+| `lb list` | List all issues (repo-scoped) |
+| `lb ready` | List unblocked issues (ready to work) |
 | `lb show <id>` | Show issue details |
-| `lb create <title>` | Create new issue |
-| `lb update <id>` | Update issue |
-| `lb close <id>` | Close issue |
-| `lb sync` | Push/pull with Linear |
+| `lb create <title>` | Create new issue (auto-syncs in background) |
+| `lb update <id>` | Update issue (auto-syncs in background) |
+| `lb close <id>` | Close issue (auto-syncs in background) |
+| `lb sync` | Manual sync (push/pull with Linear) |
 | `lb onboard` | Output agent instructions |
-| `lb whoami` | Verify API connection |
 
 ## Options
 
@@ -159,12 +175,17 @@ No manual sync needed! Use `--sync` flag only if you need immediate blocking syn
 
 ## Differences from beads
 
+lb is **inspired by** beads but uses Linear as the backend:
+
 | Feature | beads (bd) | lb |
 |---------|------------|-----|
-| Storage | Local JSONL | Linear API |
-| Sync | Auto-daemon | Background worker (auto) |
-| IDs | `bd-xxx` | `TEAM-123` |
-| Offline | Full | Cache only |
+| Storage | Local JSONL files | Linear API + SQLite cache |
+| Sync | Daemon process | Background worker (spawned on-demand) |
+| Issue IDs | `bd-xxx` | `TEAM-123` (Linear format) |
+| Offline | Fully offline | Requires network for writes |
+| Teams | Single workspace | Multi-team support (auto-detected) |
+| JSON format | snake_case, arrays | Same style (bd-inspired) |
+| Workflow | Same | Same (ready, create, update, close) |
 
 ## Linear Primitives Used
 
