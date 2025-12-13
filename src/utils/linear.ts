@@ -507,6 +507,32 @@ export async function updateIssue(
 }
 
 /**
+ * Update issue parent in Linear
+ */
+export async function updateIssueParent(issueId: string, parentId: string): Promise<void> {
+  const client = getGraphQLClient();
+
+  // Resolve parentId if it's an identifier
+  const parentUuid = (await resolveIssueId(parentId)) || parentId;
+
+  const mutation = `
+    mutation UpdateIssueParent($id: String!, $input: IssueUpdateInput!) {
+      issueUpdate(id: $id, input: $input) {
+        success
+      }
+    }
+  `;
+
+  const result = await client.request<{
+    issueUpdate: { success: boolean };
+  }>(mutation, { id: issueId, input: { parentId: parentUuid } });
+
+  if (!result.issueUpdate.success) {
+    throw new Error("Failed to set parent");
+  }
+}
+
+/**
  * Close issue in Linear
  */
 export async function closeIssue(issueId: string, teamId: string, reason?: string): Promise<Issue> {
