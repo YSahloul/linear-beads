@@ -330,8 +330,65 @@ export async function fetchIssues(teamId: string): Promise<Issue[]> {
     }
   }
 
+  // Fetch and cache relations separately to avoid complexity limits
+  await fetchRelations(teamId, result.team.issues.nodes.map((i) => i.identifier));
+
   updateLastSync();
   return issues;
+}
+
+/**
+ * Fetch relations for a set of issues
+ */
+async function fetchRelations(teamId: string, issueIds: string[]): Promise<void> {
+  const client = getGraphQLClient();
+
+  // Fetch relations in batches to avoid complexity limits
+  for (const issueId of issueIds) {
+    try {
+      const query = `
+        query GetIssueRelations($id: String!) {
+          issue(id: $id) {
+            identifier
+            relations {
+              nodes {
+                type
+                relatedIssue {
+                  identifier
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      const result = await client.request<{
+        issue: {
+          identifier: string;
+          relations: {
+            nodes: Array<{
+              type: string;
+              relatedIssue: { identifier: string };
+            }>;
+          };
+        } | null;
+      }>(query, { id: issueId });
+
+      if (result.issue?.relations?.nodes) {
+        for (const rel of result.issue.relations.nodes) {
+          cacheDependency({
+            issue_id: result.issue.identifier,
+            depends_on_id: rel.relatedIssue.identifier,
+            type: rel.type === "blocks" ? "blocks" : "related",
+            created_at: new Date().toISOString(),
+            created_by: "sync",
+          });
+        }
+      }
+    } catch {
+      // Ignore errors for individual relation fetches
+    }
+  }
 }
 
 /**
