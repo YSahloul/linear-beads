@@ -290,19 +290,20 @@ export function getDependents(issueId: string): Dependency[] {
  */
 export function getBlockedIssueIds(): Set<string> {
   const db = getDatabase();
-  // An issue is blocked if it has a "blocks" dependency on an open issue
+  // An issue is blocked if another open issue blocks it
+  // If dep = {issue_id: A, depends_on_id: B, type: blocks}, then A blocks B, so B is blocked
   const rows = db
     .query(
       `
-    SELECT DISTINCT d.issue_id
+    SELECT DISTINCT d.depends_on_id as blocked_id
     FROM dependencies d
-    JOIN issues i ON d.depends_on_id = i.id
+    JOIN issues i ON d.issue_id = i.id
     WHERE d.type = 'blocks' AND i.status != 'closed'
   `
     )
-    .all() as Array<{ issue_id: string }>;
+    .all() as Array<{ blocked_id: string }>;
 
-  return new Set(rows.map((r) => r.issue_id));
+  return new Set(rows.map((r) => r.blocked_id));
 }
 
 /**
@@ -369,13 +370,14 @@ export function updateOutboxItemError(id: number, error: string): void {
 }
 
 /**
- * Clear all cached data
+ * Clear cached data for sync refresh
+ * Preserves blocks/related dependencies (only cleared by individual --sync)
  */
 export function clearCache(): void {
   const db = getDatabase();
   db.exec(`
     DELETE FROM issues;
-    DELETE FROM dependencies;
+    DELETE FROM dependencies WHERE type = 'parent-child';
     DELETE FROM labels;
     DELETE FROM metadata;
   `);

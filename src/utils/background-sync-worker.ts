@@ -12,6 +12,7 @@ import {
   closeIssue,
   createRelation,
   fetchIssues,
+  fetchRelations,
 } from "./linear.js";
 import { exportToJsonl } from "./jsonl.js";
 import type { Issue, IssueType, Priority } from "../types.js";
@@ -56,8 +57,12 @@ async function processOutbox(): Promise<void> {
 
     // All done - pull latest from Linear and export to JSONL
     const teamId = await getTeamId();
-    await fetchIssues(teamId);
+    const issues = await fetchIssues(teamId);
     exportToJsonl();
+
+    // Fetch relations in background (this is slow but user isn't waiting)
+    const issueIds = issues.map((i) => i.id);
+    await fetchRelations(issueIds);
   } finally {
     // Clean up PID file when exiting
     removePidFile();
@@ -76,11 +81,32 @@ async function processOutboxItem(item: any, teamId: string): Promise<void> {
         priority: Priority;
         issueType: IssueType;
         parentId?: string;
+        deps?: string;
       };
-      await createIssue({
-        ...payload,
+      const issue = await createIssue({
+        title: payload.title,
+        description: payload.description,
+        priority: payload.priority,
+        issueType: payload.issueType,
+        parentId: payload.parentId,
         teamId,
       });
+
+      // Handle deps after issue creation
+      if (payload.deps) {
+        const deps = payload.deps.split(",").map((dep: string) => {
+          const [type, targetId] = dep.trim().split(":");
+          return { type, targetId };
+        });
+        for (const dep of deps) {
+          try {
+            const relationType = dep.type === "blocks" ? "blocks" : "related";
+            await createRelation(issue.id, dep.targetId, relationType as "blocks" | "related");
+          } catch {
+            // Ignore relation creation failures in background
+          }
+        }
+      }
       break;
     }
 

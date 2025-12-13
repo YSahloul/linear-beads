@@ -245,7 +245,6 @@ export async function getTeamId(teamKey?: string): Promise<string> {
   if (result.teams.nodes.length === 1) {
     // Auto-select single team
     const team = result.teams.nodes[0];
-    console.error(`Auto-detected team: ${team.name} (${team.key})`);
     return team.id;
   }
 
@@ -330,8 +329,74 @@ export async function fetchIssues(teamId: string): Promise<Issue[]> {
     }
   }
 
+  // Note: We don't fetch relations on bulk sync (too slow - O(n) network calls).
+  // Relations are fetched on-demand via `lb show <id> --sync`.
+  // This means `lb ready` may show blocked issues until their blockers are synced individually.
+
   updateLastSync();
   return issues;
+}
+
+/**
+ * Fetch relations for a set of issues (exported for background worker)
+ * Fetches in parallel batches for speed
+ */
+export async function fetchRelations(issueIds: string[]): Promise<void> {
+  const client = getGraphQLClient();
+  const BATCH_SIZE = 10; // Parallel requests per batch
+
+  const query = `
+    query GetIssueRelations($id: String!) {
+      issue(id: $id) {
+        identifier
+        relations {
+          nodes {
+            type
+            relatedIssue {
+              identifier
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  // Process in parallel batches
+  for (let i = 0; i < issueIds.length; i += BATCH_SIZE) {
+    const batch = issueIds.slice(i, i + BATCH_SIZE);
+
+    await Promise.all(
+      batch.map(async (issueId) => {
+        try {
+          const result = await client.request<{
+            issue: {
+              identifier: string;
+              relations: {
+                nodes: Array<{
+                  type: string;
+                  relatedIssue: { identifier: string };
+                }>;
+              };
+            } | null;
+          }>(query, { id: issueId });
+
+          if (result.issue?.relations?.nodes) {
+            for (const rel of result.issue.relations.nodes) {
+              cacheDependency({
+                issue_id: result.issue.identifier,
+                depends_on_id: rel.relatedIssue.identifier,
+                type: rel.type === "blocks" ? "blocks" : "related",
+                created_at: new Date().toISOString(),
+                created_by: "sync",
+              });
+            }
+          }
+        } catch {
+          // Ignore errors for individual relation fetches
+        }
+      })
+    );
+  }
 }
 
 /**
@@ -357,6 +422,31 @@ export async function fetchIssue(issueId: string): Promise<Issue | null> {
 
     const issue = linearToBdIssue(result.issue);
     cacheIssue(issue);
+
+    // Cache parent-child relation
+    if (result.issue.parent) {
+      cacheDependency({
+        issue_id: result.issue.identifier,
+        depends_on_id: result.issue.parent.identifier,
+        type: "parent-child",
+        created_at: result.issue.createdAt,
+        created_by: "sync",
+      });
+    }
+
+    // Cache other relations
+    if (result.issue.relations?.nodes) {
+      for (const rel of result.issue.relations.nodes) {
+        cacheDependency({
+          issue_id: result.issue.identifier,
+          depends_on_id: rel.relatedIssue.identifier,
+          type: rel.type === "blocks" ? "blocks" : "related",
+          created_at: result.issue.createdAt,
+          created_by: "sync",
+        });
+      }
+    }
+
     return issue;
   } catch {
     return null;
@@ -398,13 +488,14 @@ export async function createIssue(params: {
   teamId: string;
   parentId?: string;
   assigneeId?: string;
+  status?: IssueStatus;
 }): Promise<Issue> {
   const client = getGraphQLClient();
 
   // Get required labels
   const repoLabelId = await ensureRepoLabel(params.teamId);
   const typeLabelId = await ensureTypeLabel(params.teamId, params.issueType);
-  const stateId = await getWorkflowStateId(params.teamId, "open");
+  const stateId = await getWorkflowStateId(params.teamId, params.status || "open");
 
   // Resolve parentId if provided (identifier -> UUID)
   let parentUuid: string | undefined;
@@ -506,6 +597,32 @@ export async function updateIssue(
 }
 
 /**
+ * Update issue parent in Linear
+ */
+export async function updateIssueParent(issueId: string, parentId: string): Promise<void> {
+  const client = getGraphQLClient();
+
+  // Resolve parentId if it's an identifier
+  const parentUuid = (await resolveIssueId(parentId)) || parentId;
+
+  const mutation = `
+    mutation UpdateIssueParent($id: String!, $input: IssueUpdateInput!) {
+      issueUpdate(id: $id, input: $input) {
+        success
+      }
+    }
+  `;
+
+  const result = await client.request<{
+    issueUpdate: { success: boolean };
+  }>(mutation, { id: issueId, input: { parentId: parentUuid } });
+
+  if (!result.issueUpdate.success) {
+    throw new Error("Failed to set parent");
+  }
+}
+
+/**
  * Close issue in Linear
  */
 export async function closeIssue(issueId: string, teamId: string, reason?: string): Promise<Issue> {
@@ -566,6 +683,10 @@ export async function createRelation(
 ): Promise<void> {
   const client = getGraphQLClient();
 
+  // Resolve identifiers to UUIDs
+  const issueUuid = (await resolveIssueId(issueId)) || issueId;
+  const relatedUuid = (await resolveIssueId(relatedIssueId)) || relatedIssueId;
+
   const mutation = `
     mutation CreateRelation($input: IssueRelationCreateInput!) {
       issueRelationCreate(input: $input) {
@@ -578,8 +699,8 @@ export async function createRelation(
     issueRelationCreate: { success: boolean };
   }>(mutation, {
     input: {
-      issueId,
-      relatedIssueId,
+      issueId: issueUuid,
+      relatedIssueId: relatedUuid,
       type,
     },
   });

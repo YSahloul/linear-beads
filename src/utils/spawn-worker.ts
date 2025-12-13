@@ -4,8 +4,6 @@
 
 import { spawn } from "child_process";
 import { isWorkerRunning } from "./pid-manager.js";
-import { fileURLToPath } from "url";
-import { dirname, join } from "path";
 
 /**
  * Spawn background sync worker if needed
@@ -18,15 +16,29 @@ export function spawnWorkerIfNeeded(): boolean {
   }
 
   try {
-    // Get path to worker script
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = dirname(__filename);
-    const workerPath = join(__dirname, "background-sync-worker.ts");
+    // Detect if we're running as a compiled binary or via bun run
+    const execPath = process.execPath;
+    const isCompiled = execPath.endsWith("/lb") || execPath.endsWith("\\lb.exe");
 
-    // Spawn detached worker process
-    const worker = spawn("bun", [workerPath], {
+    let cmd: string;
+    let args: string[];
+
+    if (isCompiled) {
+      // Compiled binary: just run with --worker
+      cmd = execPath;
+      args = ["--worker"];
+    } else {
+      // Dev mode: need to run bun with the script
+      // import.meta.path gives us the current file, we need cli.ts
+      const cliPath = import.meta.path.replace(/spawn-worker\.[tj]s$/, "../cli.ts");
+      cmd = execPath;
+      args = ["run", cliPath, "--worker"];
+    }
+
+    const worker = spawn(cmd, args, {
       detached: true,
-      stdio: "ignore", // Ignore stdout/stderr
+      stdio: "ignore",
+      cwd: process.cwd(),
     });
 
     // Unref so parent can exit

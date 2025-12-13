@@ -26,8 +26,9 @@ export interface BeadsIssue {
  * Beads dependency structure
  */
 export interface BeadsDependency {
-  type: string; // "blocks", "blocked-by", "discovered-from", "related"
+  type: string; // "blocks", "blocked-by", "discovered-from", "related", "parent-child"
   issue_id: string;
+  depends_on_id: string;
 }
 
 /**
@@ -193,7 +194,7 @@ export async function createImportedIssues(
 
   for (const issue of issues) {
     try {
-      // Create issue in Linear, assigned to importer
+      // Create issue in Linear, assigned to importer, preserving status
       const created = await createIssue({
         title: issue.title,
         description: issue.description,
@@ -201,6 +202,7 @@ export async function createImportedIssues(
         issueType: issue.issue_type,
         teamId,
         assigneeId: viewer.id,
+        status: issue.status,
       });
 
       // Add comment with beads ID reference
@@ -229,54 +231,47 @@ export async function createImportedDependencies(
   mapping: Map<string, string>,
   teamId: string
 ): Promise<void> {
-  const { createRelation } = await import("./linear.js");
+  const { createRelation, updateIssueParent } = await import("./linear.js");
   let created = 0;
+  let parents = 0;
 
   for (const issue of issues) {
     const linearId = mapping.get(issue.id);
     if (!linearId) continue;
 
-    // Handle parent relationship
-    if (issue.parent) {
-      const parentLinearId = mapping.get(issue.parent);
-      if (parentLinearId) {
-        try {
-          // In Linear, parent is handled during issue creation
-          // For now we'll skip this as it requires updating the issue
-          console.log(`  Parent: ${issue.id} → ${issue.parent}`);
-        } catch (error) {
-          console.warn(`  Failed to set parent for ${issue.id}:`, error);
-        }
-      } else {
-        console.warn(`  Skipping parent ${issue.parent} (not in mapping)`);
-      }
-    }
-
-    // Handle explicit dependencies
+    // Handle dependencies
     if (issue.dependencies) {
       for (const dep of issue.dependencies) {
-        const depLinearId = mapping.get(dep.issue_id);
+        // depends_on_id is the target (parent, blocker, etc.)
+        const targetLinearId = mapping.get(dep.depends_on_id);
 
-        if (!depLinearId) {
-          console.warn(`  Skipping dependency ${dep.issue_id} (not in mapping)`);
+        if (!targetLinearId) {
+          console.warn(`  Skipping dependency ${dep.depends_on_id} (not in mapping)`);
           continue;
         }
 
         try {
-          if (dep.type === "blocks") {
-            await createRelation(linearId, depLinearId, "blocks");
+          if (dep.type === "parent-child") {
+            // Set parent on the child issue
+            await updateIssueParent(linearId, targetLinearId);
+            parents++;
+          } else if (dep.type === "blocks") {
+            await createRelation(linearId, targetLinearId, "blocks");
             created++;
           } else if (dep.type === "related" || dep.type === "discovered-from") {
-            await createRelation(linearId, depLinearId, "related");
+            await createRelation(linearId, targetLinearId, "related");
             created++;
           }
         } catch (error) {
-          console.warn(`  Failed to create dependency for ${issue.id}:`, error);
+          console.warn(`  Failed to create ${dep.type} for ${issue.id}:`, error);
         }
       }
     }
   }
 
+  if (parents > 0) {
+    console.log(`✓ Set ${parents} parent-child relationships`);
+  }
   if (created > 0) {
     console.log(`✓ Created ${created} dependencies`);
   }
