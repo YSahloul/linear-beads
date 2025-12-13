@@ -5,9 +5,17 @@
 
 import { existsSync, readFileSync } from "fs";
 import { join, dirname } from "path";
+import { homedir } from "os";
 import type { Config } from "../types.js";
 
 let loadedConfig: Config = {};
+
+/**
+ * Get global config path (~/.config/lb/config.json)
+ */
+export function getGlobalConfigPath(): string {
+  return join(homedir(), ".config", "lb", "config.json");
+}
 
 /**
  * Find git root directory
@@ -50,11 +58,23 @@ function getRepoName(): string {
 
 /**
  * Load config from various sources
+ * Priority: env vars > project config > global config
  */
 function loadConfig(): Config {
   const config: Config = {};
 
-  // 1. Try .lb.json in current dir or git root
+  // 1. Load from global config first (~/.config/lb/config.json)
+  const globalConfigPath = getGlobalConfigPath();
+  if (existsSync(globalConfigPath)) {
+    try {
+      const content = readFileSync(globalConfigPath, "utf-8");
+      Object.assign(config, JSON.parse(content));
+    } catch {
+      // Ignore errors in global config
+    }
+  }
+
+  // 2. Try .lb.json in current dir or git root (overrides global)
   const gitRoot = findGitRoot();
   const configPaths = [
     ".lb.json",
@@ -77,7 +97,7 @@ function loadConfig(): Config {
     }
   }
 
-  // 2. Environment variables override config file
+  // 3. Environment variables override everything
   if (process.env.LINEAR_API_KEY) {
     config.api_key = process.env.LINEAR_API_KEY;
   }
@@ -91,12 +111,12 @@ function loadConfig(): Config {
     config.repo_name = process.env.LB_REPO_NAME;
   }
 
-  // 3. Default repo name from git
+  // 4. Default repo name from git
   if (!config.repo_name) {
     config.repo_name = getRepoName();
   }
 
-  // 4. Default cache TTL
+  // 5. Default cache TTL
   if (!config.cache_ttl_seconds) {
     config.cache_ttl_seconds = 120; // 2 minutes
   }
