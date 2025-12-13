@@ -6,6 +6,7 @@
 
 - **bd-inspired CLI** - Similar commands and workflow as beads
 - **bd-style JSON** - snake_case keys, arrays, terse output for AI agents
+- **Migrate from beads** - Import issues from `.beads/issues.jsonl` with `lb import`
 - **Offline-first** - Local SQLite cache + outbox queue
 - **Repo scoping** - Issues filtered by `repo:name` label
 - **Background sync** - Automatic async push to Linear (fire-and-forget)
@@ -101,6 +102,7 @@ lb close TEAM-123 --reason "Done!" --json
 | `lb auth` | Configure Linear API key globally |
 | `lb auth --show` | Show current config source and masked key |
 | `lb auth --clear` | Remove global config |
+| `lb import` | Import issues from beads (.beads/issues.jsonl) |
 | `lb whoami` | Verify API connection and show your teams |
 | `lb list` | List all issues (repo-scoped) |
 | `lb ready` | List unblocked issues (ready to work) |
@@ -218,6 +220,29 @@ All free-tier compatible:
 - Workflow states (status mapping)
 - Issue relations (blocks, related)
 - Comments (close reasons)
+
+## Migrating from beads
+
+If you're moving from beads to lb:
+
+```bash
+cd your-beads-project
+lb init                    # Initialize lb
+lb import --dry-run        # Preview import
+lb import                  # Import from .beads/issues.jsonl
+```
+
+**Options:**
+- `--include-closed` - Import closed issues too (default: skip)
+- `--since <date>` - Only import issues created after date
+- `--source <path>` - Custom beads file path
+- `--force` - Skip confirmation prompt
+
+**What happens:**
+- Preserves issue relationships (blocks, related, discovered-from)
+- Adds comment on Linear issues: "Imported from beads issue: bd-xxx"
+- Mapping saved to `.lb/import-map.jsonl` for traceability
+- Duplicate detection (skips existing issues by title)
 
 ## For AI Agents
 
