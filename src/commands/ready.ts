@@ -6,10 +6,12 @@ import { Command } from "commander";
 import { ensureFresh } from "../utils/sync.js";
 import { getCachedIssues, getDependencies, getBlockedIssueIds } from "../utils/database.js";
 import { formatReadyJson, formatIssuesListHuman, output } from "../utils/output.js";
+import { getViewer } from "../utils/linear.js";
 
 export const readyCommand = new Command("ready")
   .description("List unblocked issues ready to work on")
   .option("-j, --json", "Output as JSON")
+  .option("-a, --all", "Show all ready issues (not just mine)")
   .option("--sync", "Force sync before listing")
   .option("--team <team>", "Team key (overrides config)")
   .action(async (options) => {
@@ -22,9 +24,17 @@ export const readyCommand = new Command("ready")
 
       // Filter to open issues that are not blocked
       const blockedIds = getBlockedIssueIds();
-      const readyIssues = allIssues.filter(
+      let readyIssues = allIssues.filter(
         (i) => i.status === "open" && !blockedIds.has(i.id)
       );
+
+      // Filter by assignee unless --all
+      if (!options.all) {
+        const viewer = await getViewer();
+        readyIssues = readyIssues.filter(
+          (i) => !i.assignee || i.assignee === viewer.email
+        );
+      }
 
       // Sort by priority, then updated_at
       readyIssues.sort((a, b) => {
