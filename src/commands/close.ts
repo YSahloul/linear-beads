@@ -54,11 +54,9 @@ export const closeCommand = new Command("close")
             output(formatIssueJson(closed));
           } else {
             output(formatIssueHuman(closed));
-            output("(queued - background sync started)");
           }
         } else {
-          output(`Queued close for: ${id}`);
-          output("Background sync started");
+          output(`Closed: ${id}`);
         }
       }
     } catch (error) {

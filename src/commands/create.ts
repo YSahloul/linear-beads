@@ -149,8 +149,7 @@ export const createCommand = new Command("create")
         if (options.json) {
           output(formatIssueJson(placeholder));
         } else {
-          output(`Queued: ${title}`);
-          output("Background sync started");
+          output(`Created: ${title}`);
         }
       }
     } catch (error) {
