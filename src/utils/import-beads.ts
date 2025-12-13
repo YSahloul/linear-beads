@@ -181,18 +181,23 @@ export async function createImportedIssues(
   issues: BeadsIssue[],
   teamId: string
 ): Promise<Map<string, string>> {
-  const { createIssue, addComment } = await import("./linear.js");
+  const { createIssue, addComment, getViewer } = await import("./linear.js");
   const mapping = new Map<string, string>();
+
+  // Get current user to assign all imported issues
+  const viewer = await getViewer();
+  console.log(`Assigning all imported issues to ${viewer.email}`);
 
   for (const issue of issues) {
     try {
-      // Create issue in Linear
+      // Create issue in Linear, assigned to importer
       const created = await createIssue({
         title: issue.title,
         description: issue.description,
         priority: issue.priority,
         issueType: issue.issue_type,
         teamId,
+        assigneeId: viewer.id,
       });
 
       // Add comment with beads ID reference
