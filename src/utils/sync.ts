@@ -10,6 +10,7 @@ import {
   clearCache,
 } from "./database.js";
 import { fetchIssues, getTeamId, createIssue, updateIssue, closeIssue, createRelation } from "./linear.js";
+import { exportToJsonl } from "./jsonl.js";
 import type { Issue, IssueType, Priority } from "../types.js";
 
 /**
@@ -100,6 +101,9 @@ export async function fullSync(teamKey?: string): Promise<{
 
   // Then pull
   const issues = await pullFromLinear(teamId);
+
+  // Export to JSONL
+  exportToJsonl();
 
   return {
     pushed,

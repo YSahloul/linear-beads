@@ -5,7 +5,8 @@
 
 import { writePidFile, removePidFile } from "./pid-manager.js";
 import { getPendingOutboxItems, removeOutboxItem, updateOutboxItemError } from "./database.js";
-import { getTeamId, createIssue, updateIssue, closeIssue, createRelation } from "./linear.js";
+import { getTeamId, createIssue, updateIssue, closeIssue, createRelation, fetchIssues } from "./linear.js";
+import { exportToJsonl } from "./jsonl.js";
 import type { Issue, IssueType, Priority } from "../types.js";
 
 /**
@@ -45,6 +46,11 @@ async function processOutbox(): Promise<void> {
       // Brief pause before checking for more items
       await sleep(500);
     }
+
+    // All done - pull latest from Linear and export to JSONL
+    const teamId = await getTeamId();
+    await fetchIssues(teamId);
+    exportToJsonl();
   } finally {
     // Clean up PID file when exiting
     removePidFile();
