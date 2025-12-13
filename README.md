@@ -1,10 +1,12 @@
 # linear-beads (lb)
 
-Linear-backed issue tracking for AI agents.
+Linear-backed issue tracking for AI agents. Inspired by [beads](https://github.com/steveyegge/beads).
+
+`lb` gives you beads-style issue tracking with Linear as the backend. Your issues live in Linear where you can see them, but agents interact through a fast CLI with JSON output, background sync, and dependency tracking.
 
 ## Install
 
-**Download a binary** from [releases](https://github.com/nikvdp/linear-beads/releases) and put it in your PATH.
+**Download a binary** from [releases](https://github.com/nikvdp/linear-beads/releases) and add it to your PATH.
 
 **Or with bun:**
 ```bash
@@ -14,7 +16,7 @@ bun install -g github:nikvdp/linear-beads
 ## Setup
 
 ```bash
-# Authenticate with Linear (get key at https://linear.app/settings/api)
+# Authenticate with Linear (get your API key at https://linear.app/settings/api)
 lb auth
 
 # In your project
@@ -30,7 +32,7 @@ Add this to your project's AGENTS.md or CLAUDE.md:
 This project uses lb for issue tracking. Run `lb onboard` and follow the instructions.
 ```
 
-Your agent will run `lb onboard`, which outputs everything it needs to set up AGENTS.md and start using `lb`.
+Your agent will run `lb onboard`, which outputs everything it needs to set up AGENTS.md and start tracking work.
 
 ## License
 
