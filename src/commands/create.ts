@@ -15,6 +15,8 @@ import { formatIssueJson, formatIssueHuman, output } from "../utils/output.js";
 import { spawnWorkerIfNeeded } from "../utils/spawn-worker.js";
 import type { IssueType, Priority } from "../types.js";
 
+const VALID_DEP_TYPES = ["blocks", "related", "discovered-from"];
+
 /**
  * Parse deps string into array of {type, targetId}
  * Format: "type:id,type:id" e.g. "discovered-from:LIN-123,blocks:LIN-456"
@@ -23,6 +25,12 @@ function parseDeps(deps: string): Array<{ type: string; targetId: string }> {
   if (!deps) return [];
   return deps.split(",").map((dep) => {
     const [type, targetId] = dep.trim().split(":");
+    if (!VALID_DEP_TYPES.includes(type)) {
+      console.error(
+        `Invalid dep type '${type}'. Valid types: ${VALID_DEP_TYPES.join(", ")}. For subtasks use --parent instead.`
+      );
+      process.exit(1);
+    }
     return { type, targetId };
   });
 }
@@ -33,8 +41,8 @@ export const createCommand = new Command("create")
   .option("-d, --description <desc>", "Issue description")
   .option("-t, --type <type>", "Issue type (bug, feature, task, epic, chore)", "task")
   .option("-p, --priority <priority>", "Priority (0-4, 0 is highest)", "2")
-  .option("--parent <id>", "Parent issue ID")
-  .option("--deps <deps>", "Dependencies (comma-separated, e.g., 'discovered-from:TEAM-123')")
+  .option("--parent <id>", "Parent issue ID (makes this a subtask)")
+  .option("--deps <deps>", "Relations: 'blocks:ID' or 'discovered-from:ID' (NOT for subtasks, use --parent)")
   .option("--assign <email>", "Assign to user (email or 'me')")
   .option("--unassign", "Leave unassigned (skip auto-assign)")
   .option("-j, --json", "Output as JSON")
@@ -52,6 +60,11 @@ export const createCommand = new Command("create")
       if (!validTypes.includes(options.type)) {
         console.error(`Type must be one of: ${validTypes.join(", ")}`);
         process.exit(1);
+      }
+
+      // Validate deps early before creating anything
+      if (options.deps) {
+        parseDeps(options.deps); // Will exit if invalid
       }
 
       const issueType = options.type as IssueType;

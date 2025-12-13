@@ -17,6 +17,8 @@ import { formatIssueJson, formatIssueHuman, output, outputError } from "../utils
 import { spawnWorkerIfNeeded } from "../utils/spawn-worker.js";
 import type { Priority, IssueStatus } from "../types.js";
 
+const VALID_DEP_TYPES = ["blocks", "related"];
+
 /**
  * Parse deps string into array of {type, targetId}
  */
@@ -24,6 +26,12 @@ function parseDeps(deps: string): Array<{ type: string; targetId: string }> {
   if (!deps) return [];
   return deps.split(",").map((dep) => {
     const [type, targetId] = dep.trim().split(":");
+    if (!VALID_DEP_TYPES.includes(type)) {
+      console.error(
+        `Invalid dep type '${type}'. Valid types: ${VALID_DEP_TYPES.join(", ")}. For subtasks use --parent instead.`
+      );
+      process.exit(1);
+    }
     return { type, targetId };
   });
 }
@@ -37,8 +45,8 @@ export const updateCommand = new Command("update")
   .option("-p, --priority <priority>", "New priority (0-4)")
   .option("--assign <email>", "Assign to user (email or 'me')")
   .option("--unassign", "Remove assignee")
-  .option("--parent <id>", "Set parent issue")
-  .option("--deps <deps>", "Add relations (e.g., 'blocks:LIN-123,related:LIN-456')")
+  .option("--parent <id>", "Set parent issue (makes this a subtask)")
+  .option("--deps <deps>", "Relations: 'blocks:ID' (NOT for subtasks, use --parent)")
   .option("-j, --json", "Output as JSON")
   .option("--sync", "Sync immediately (block on network)")
   .option("--team <team>", "Team key (overrides config)")
@@ -141,6 +149,11 @@ export const updateCommand = new Command("update")
           }
         }
       } else {
+        // Validate deps before queueing
+        if (options.deps) {
+          parseDeps(options.deps); // Will exit if invalid
+        }
+
         // Queue mode: add to outbox and spawn background worker
         // For queue mode, pass flags for worker to resolve
         const payload: Record<string, unknown> = {
