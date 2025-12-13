@@ -1,17 +1,15 @@
 # Beads (local issue tracking - not committed)
 .beads/
 
+# lb data (cache is local, issues.jsonl is tracked)
+.lb/*
+!.lb/issues.jsonl
+
 # Dependencies
 node_modules/
 
 # Build output
 dist/
-
-# Local data
-*.db
-*.db-journal
-*.db-wal
-*.db-shm
 
 # Environment
 .env
