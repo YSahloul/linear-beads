@@ -66,16 +66,17 @@ lb close LIN-42 --reason "Completed" --json
 4. **Discover new work?** Create linked issue:
    - \`lb create "Found bug" -p 1 --deps discovered-from:<parent-id> --json\`
 5. **Complete**: \`lb close <id> --reason "Done" --json\`
-6. **Sync**: Run \`lb sync\` to push changes to Linear
 
-### Syncing with Linear
+### Background Sync
 
-lb caches issues locally for fast access. To push pending changes and pull latest:
-\`\`\`bash
-lb sync
-\`\`\`
+lb automatically syncs changes to Linear in the background:
 
-Commands also accept \`--sync\` to push immediately instead of queuing.
+- Write commands (create/update/close) return immediately after queuing
+- A background worker process pushes changes to Linear asynchronously
+- Linear may be slightly behind - eventual consistency
+- No manual sync needed - it's fire-and-forget!
+
+Commands accept \`--sync\` to push immediately (blocking) instead of queuing.
 
 ### CLI Help
 
@@ -88,7 +89,8 @@ For example: \`lb create --help\` shows \`--parent\`, \`--deps\`, \`--type\`, et
 - Always use \`--json\` flag for programmatic use
 - Link discovered work with \`--deps discovered-from:<id>\`
 - Check \`lb ready\` before asking "what should I work on?"
-- Run \`lb sync\` to persist changes to Linear
+- Changes sync automatically in background (fire-and-forget)
+- Use \`--sync\` flag only if you need immediate blocking sync
 - Do NOT create markdown TODO lists
 - Do NOT use external issue trackers
 - Do NOT duplicate tracking systems

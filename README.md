@@ -8,7 +8,7 @@
 - **bd-compatible JSON** - snake_case, arrays, terse output
 - **Offline-first** - Local SQLite cache + outbox queue
 - **Repo scoping** - Issues filtered by `repo:name` label
-- **No daemon** - Explicit `lb sync` command
+- **Background sync** - Automatic async push to Linear (fire-and-forget)
 
 ## Installation
 
@@ -50,23 +50,23 @@ Or create `.lb.json`:
 # Verify connection
 lb whoami
 
-# Sync with Linear
-lb sync
-
 # List issues
 lb list --json
 
 # Show ready (unblocked) issues
 lb ready --json
 
-# Create an issue
+# Create an issue (auto-syncs in background)
 lb create "Fix login bug" -t bug -p 1 --json
 
-# Update status
+# Update status (auto-syncs in background)
 lb update TEAM-123 --status in_progress --json
 
-# Close an issue
+# Close an issue (auto-syncs in background)
 lb close TEAM-123 --reason "Fixed in commit abc123" --json
+
+# Manual sync (optional - usually not needed)
+lb sync
 ```
 
 ## Commands
@@ -139,15 +139,26 @@ lb-cli/
 
 1. **Cache**: Issues are cached locally in SQLite (`.lb/cache.db`)
 2. **Outbox**: Write commands queue mutations locally
-3. **Sync**: `lb sync` pushes outbox then pulls from Linear
+3. **Background Sync**: Worker process automatically pushes to Linear
 4. **Scoping**: All issues are filtered by `repo:<name>` label
+
+### Background Sync Details
+
+When you create, update, or close an issue:
+1. Change is queued in local outbox (instant return)
+2. Background worker spawns if not already running
+3. Worker processes queue and pushes to Linear
+4. Worker exits when queue is empty
+5. Next change spawns new worker (smart - only one per repo at a time)
+
+No manual sync needed! Use `--sync` flag only if you need immediate blocking sync.
 
 ## Differences from beads
 
 | Feature | beads (bd) | lb |
 |---------|------------|-----|
 | Storage | Local JSONL | Linear API |
-| Sync | Auto-daemon | Manual `lb sync` |
+| Sync | Auto-daemon | Background worker (auto) |
 | IDs | `bd-xxx` | `TEAM-123` |
 | Offline | Full | Cache only |
 
