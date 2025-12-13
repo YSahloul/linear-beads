@@ -4,8 +4,6 @@
 
 import { spawn } from "child_process";
 import { isWorkerRunning } from "./pid-manager.js";
-import { fileURLToPath } from "url";
-import { dirname, join } from "path";
 
 /**
  * Spawn background sync worker if needed
@@ -18,15 +16,13 @@ export function spawnWorkerIfNeeded(): boolean {
   }
 
   try {
-    // Get path to worker script
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = dirname(__filename);
-    const workerPath = join(__dirname, "background-sync-worker.ts");
+    // Get the real executable path
+    // When compiled with bun, process.execPath gives us the actual binary path
+    const realExecPath = process.execPath;
 
-    // Spawn detached worker process
-    const worker = spawn("bun", [workerPath], {
+    const worker = spawn(realExecPath, ["--worker"], {
       detached: true,
-      stdio: "ignore", // Ignore stdout/stderr
+      stdio: "ignore",
     });
 
     // Unref so parent can exit

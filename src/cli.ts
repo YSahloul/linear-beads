@@ -17,10 +17,22 @@ import { syncCommand } from "./commands/sync.js";
 import { onboardCommand } from "./commands/onboard.js";
 import { verifyConnection } from "./utils/linear.js";
 import { closeDatabase } from "./utils/database.js";
+import { processOutbox } from "./utils/background-sync-worker.js";
 
 const program = new Command();
 
-program.name("lb").description("Linear-native beads-style issue tracker").version("0.1.0");
+program
+  .name("lb")
+  .description("Linear-native beads-style issue tracker")
+  .version("0.1.0")
+  .option("--worker", "Internal: run background sync worker");
+
+// Check for --worker flag before parsing commands
+if (process.argv.includes("--worker")) {
+  processOutbox()
+    .then(() => process.exit(0))
+    .catch(() => process.exit(1));
+} else {
 
 // Add subcommands
 program.addCommand(initCommand);
@@ -60,5 +72,6 @@ process.on("exit", () => {
   closeDatabase();
 });
 
-// Parse and run
-program.parse();
+  // Parse and run
+  program.parse();
+}
