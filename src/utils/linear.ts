@@ -398,13 +398,14 @@ export async function createIssue(params: {
   teamId: string;
   parentId?: string;
   assigneeId?: string;
+  status?: IssueStatus;
 }): Promise<Issue> {
   const client = getGraphQLClient();
 
   // Get required labels
   const repoLabelId = await ensureRepoLabel(params.teamId);
   const typeLabelId = await ensureTypeLabel(params.teamId, params.issueType);
-  const stateId = await getWorkflowStateId(params.teamId, "open");
+  const stateId = await getWorkflowStateId(params.teamId, params.status || "open");
 
   // Resolve parentId if provided (identifier -> UUID)
   let parentUuid: string | undefined;

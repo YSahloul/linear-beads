@@ -193,7 +193,7 @@ export async function createImportedIssues(
 
   for (const issue of issues) {
     try {
-      // Create issue in Linear, assigned to importer
+      // Create issue in Linear, assigned to importer, preserving status
       const created = await createIssue({
         title: issue.title,
         description: issue.description,
@@ -201,6 +201,7 @@ export async function createImportedIssues(
         issueType: issue.issue_type,
         teamId,
         assigneeId: viewer.id,
+        status: issue.status,
       });
 
       // Add comment with beads ID reference
