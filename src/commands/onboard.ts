@@ -6,63 +6,107 @@ import { Command } from "commander";
 import { output } from "../utils/output.js";
 
 // Instructions that should be added to AGENTS.md
-const AGENTS_MD_CONTENT = `## lb - Issue Tracking
+const AGENTS_MD_CONTENT = `## CRITICAL: Task Tracking with \`lb\`
 
-This repo uses \`lb\` for issue tracking. All tasks live in Linear.
+**DO NOT use the TodoWrite/TodoRead tools. NEVER. Use \`lb\` instead.**
 
-### Workflow
+This repo uses \`lb\` for issue tracking. All tasks live in Linear. The \`lb\` CLI is your todo list.
 
-1. \`lb ready --json\` - see your unblocked work
-2. \`lb update <id> --status in_progress\` - claim it
-3. Do the work
-4. \`lb close <id> --reason "Done"\` - mark complete
+### First Time Setup
 
-### Creating Issues
-
+If \`lb\` hasn't been initialized in this repo:
 \`\`\`bash
-lb create "Title" -p 1 -d "Description with context"
-lb create "Bug" -t bug -p 1 -d "Steps to reproduce, expected vs actual"
-lb create "Subtask" --parent LIN-123 -d "Why this is needed"
-lb create "Found this" --deps discovered-from:LIN-123 -d "Context from parent"
+lb init          # Initialize lb
+lb onboard       # Get instructions for AGENTS.md setup
 \`\`\`
 
-**Always include a description (-d)** with enough context for another agent to pick up the task:
-- What needs to be done and why
-- Relevant file paths or code references
+Add \`.lb\` and \`AGENTS.md\` to \`.git/info/exclude\` (NOT .gitignore - these are local-only).
+
+### Before Starting ANY Work
+
+\`\`\`bash
+lb sync                    # Pull latest from Linear
+lb ready                   # See unblocked work
+lb show LIN-XXX            # Read full description before starting
+lb update LIN-XXX --status in_progress   # Claim it
+\`\`\`
+
+### Planning Work
+
+When you need to break down a task into steps, **create subtasks in lb**, not mental notes or TodoWrite:
+
+\`\`\`bash
+# Break down a task into subtasks
+lb create "Step 1: Do X" --parent LIN-XXX -d "Details..."
+lb create "Step 2: Do Y" --parent LIN-XXX -d "Details..."
+lb create "Step 3: Do Z" --parent LIN-XXX -d "Details..."
+\`\`\`
+
+### During Work
+
+\`\`\`bash
+# Found something that needs doing? Create an issue, don't just remember it
+lb create "Found: need to fix X" --parent LIN-XXX -d "Context..."
+
+# Discovered a blocker or dependency?
+lb update LIN-AAA --deps blocks:LIN-BBB   # AAA blocks BBB
+\`\`\`
+
+### Completing Work
+
+\`\`\`bash
+lb close LIN-XXX --reason "Brief summary of what was done"
+\`\`\`
+
+### Creating Good Issues
+
+Always include \`-d "description"\` with:
+- What needs to be done and WHY
+- Relevant file paths or code references  
 - Any constraints or acceptance criteria
+- Enough context for another agent to pick it up
 
-### Key Commands
-
-- \`lb ready\` - unblocked issues assigned to you (or unassigned)
-- \`lb list\` - all issues
-- \`lb show LIN-123\` - issue details with description
-- \`lb update LIN-123 --status in_progress\` - update status
-- \`lb update LIN-123 --parent LIN-100\` - set parent (make subtask)
-- \`lb update LIN-123 --deps blocks:LIN-456\` - add blocking relation
-- \`lb close LIN-123 --reason "why"\` - close with reason
-
-### Relationships
-
-**Parent/Child (subtasks):**
 \`\`\`bash
-lb create "Subtask" --parent LIN-epic       # create as child
-lb update LIN-task --parent LIN-epic        # move under parent
-\`\`\`
-Children of blocked parents are also blocked and won't appear in \`lb ready\`.
+# Good
+lb create "Fix race condition in model refresh" -d "chatModels.refresh() can be called multiple times concurrently causing state corruption. Add mutex. See src/lib/stores/stores/llmProvider.ts:297"
 
-**Blocking:**
-\`--deps blocks:LIN-X\` means "this issue blocks LIN-X" (LIN-X cannot start until this is done).
-\`\`\`bash
-lb update LIN-phase1 --deps blocks:LIN-phase2   # phase1 blocks phase2
+# Bad
+lb create "Fix bug"
 \`\`\`
-LIN-phase2 won't appear in \`lb ready\` until LIN-phase1 is closed.
+
+### Issue Types
+
+\`\`\`bash
+lb create "Title" -t task     # Default - general work
+lb create "Title" -t bug      # Bug fix
+lb create "Title" -t feature  # New feature
+lb create "Title" -t epic     # Large initiative with subtasks
+lb create "Title" -t chore    # Maintenance/cleanup
+\`\`\`
+
+### Key Commands Reference
+
+| Command | Purpose |
+|---------|---------|
+| \`lb sync\` | Sync with Linear |
+| \`lb ready\` | Show unblocked issues you can work on |
+| \`lb list\` | Show all issues |
+| \`lb show LIN-XXX\` | Full issue details |
+| \`lb update LIN-XXX --status in_progress\` | Claim work |
+| \`lb update LIN-XXX --status open\` | Unclaim/pause work |
+| \`lb close LIN-XXX --reason "why"\` | Complete work |
+| \`lb create "Title" --parent LIN-XXX -d "..."\` | Create subtask |
+| \`lb update LIN-XXX --deps blocks:LIN-YYY\` | Add dependency |
 
 ### Rules
 
-- Use \`lb\` for ALL task tracking - no markdown TODOs
-- Always include descriptions with context for handoff
-- Check \`lb ready\` before asking what to work on
-- Link discovered work with \`--deps discovered-from:<id>\``;
+1. **NEVER use TodoWrite** - use \`lb create\` for subtasks instead
+2. **Always \`lb sync\` and \`lb ready\`** before asking what to work on
+3. **Always \`lb show\`** to read the full description before starting
+4. **Always \`lb update --status in_progress\`** before starting work
+5. **Create subtasks in lb** when breaking down work, not mental notes
+6. **Always include descriptions** with context for handoff
+7. **Close issues with reasons** explaining what was done`;
 
 const ONBOARD_CONTENT = `# lb Onboard
 
@@ -79,16 +123,15 @@ ${AGENTS_MD_CONTENT}
 
 ---
 
-## Quick Reference
+## Git Workflow
 
-\`\`\`bash
-lb ready --json              # Your unblocked work
-lb update LIN-X --status in_progress
-lb create "New issue" -p 1
-lb close LIN-X --reason "Done"
-\`\`\`
+Commit atomically as you work (one logical change per commit) unless told otherwise.
 
-After adding the above to AGENTS.md, you're ready to use \`lb ready\` to find work.
+Don't commit AGENTS.md or .lb - they're in .git/info/exclude for a reason.
+
+---
+
+After adding the above to AGENTS.md, run \`lb sync\` then \`lb ready\` to find work.
 `;
 
 export const onboardCommand = new Command("onboard")
