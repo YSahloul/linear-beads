@@ -9,6 +9,7 @@ import {
   cacheIssues,
   cacheDependency,
   clearIssueDependencies,
+  clearIssuesCache,
   cacheLabel,
   getLabelIdByName,
   updateLastSync,
@@ -313,6 +314,9 @@ export async function fetchIssues(teamId: string): Promise<Issue[]> {
   }>(query, { teamId, labelName: repoLabel });
 
   const issues = result.team.issues.nodes.map(linearToBdIssue);
+
+  // Clear old issues before caching fresh ones (prevents stale issues from other repos)
+  clearIssuesCache();
 
   // Cache issues
   cacheIssues(issues);

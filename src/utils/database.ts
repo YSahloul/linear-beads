@@ -418,6 +418,17 @@ export function clearCache(): void {
 }
 
 /**
+ * Clear issues cache (before full sync to remove stale issues from other repos)
+ */
+export function clearIssuesCache(): void {
+  const db = getDatabase();
+  db.exec(`
+    DELETE FROM issues;
+    DELETE FROM dependencies WHERE type = 'parent-child';
+  `);
+}
+
+/**
  * Cache a label
  */
 export function cacheLabel(id: string, name: string, teamId?: string): void {
