@@ -14,6 +14,7 @@ import {
 import { formatIssueJson, formatIssueHuman, output } from "../utils/output.js";
 import { spawnWorkerIfNeeded } from "../utils/spawn-worker.js";
 import type { IssueType, Priority } from "../types.js";
+import { parsePriority } from "../types.js";
 
 const VALID_DEP_TYPES = ["blocks", "related", "discovered-from"];
 
@@ -40,7 +41,7 @@ export const createCommand = new Command("create")
   .argument("<title>", "Issue title")
   .option("-d, --description <desc>", "Issue description")
   .option("-t, --type <type>", "Issue type (bug, feature, task, epic, chore)", "task")
-  .option("-p, --priority <priority>", "Priority (0-4, 0 is highest)", "2")
+  .option("-p, --priority <priority>", "Priority: urgent, high, medium, low, backlog (or 0-4)", "2")
   .option("--parent <id>", "Parent issue ID (makes this a subtask)")
   .option("--deps <deps>", "Relations: 'blocks:ID' or 'discovered-from:ID' (NOT for subtasks, use --parent)")
   .option("--assign <email>", "Assign to user (email or 'me')")
@@ -50,9 +51,9 @@ export const createCommand = new Command("create")
   .option("--team <team>", "Team key (overrides config)")
   .action(async (title: string, options) => {
     try {
-      const priority = parseInt(options.priority) as Priority;
-      if (priority < 0 || priority > 4) {
-        console.error("Priority must be 0-4");
+      const { priority, error: priorityError } = parsePriority(options.priority);
+      if (priorityError || priority === undefined) {
+        console.error(priorityError);
         process.exit(1);
       }
 

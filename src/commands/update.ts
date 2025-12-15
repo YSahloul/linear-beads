@@ -16,6 +16,7 @@ import {
 import { formatIssueJson, formatIssueHuman, output, outputError } from "../utils/output.js";
 import { spawnWorkerIfNeeded } from "../utils/spawn-worker.js";
 import type { Priority, IssueStatus } from "../types.js";
+import { parsePriority } from "../types.js";
 
 const VALID_DEP_TYPES = ["blocks", "related"];
 
@@ -42,7 +43,7 @@ export const updateCommand = new Command("update")
   .option("--title <title>", "New title")
   .option("-d, --description <desc>", "New description")
   .option("-s, --status <status>", "New status (open, in_progress, closed)")
-  .option("-p, --priority <priority>", "New priority (0-4)")
+  .option("-p, --priority <priority>", "Priority: urgent, high, medium, low, backlog (or 0-4)")
   .option("--assign <email>", "Assign to user (email or 'me')")
   .option("--unassign", "Remove assignee")
   .option("--parent <id>", "Set parent issue (makes this a subtask)")
@@ -74,9 +75,9 @@ export const updateCommand = new Command("update")
       }
 
       if (options.priority !== undefined) {
-        const priority = parseInt(options.priority) as Priority;
-        if (priority < 0 || priority > 4) {
-          outputError("Priority must be 0-4");
+        const { priority, error: priorityError } = parsePriority(options.priority);
+        if (priorityError || priority === undefined) {
+          outputError(priorityError || "Invalid priority");
           process.exit(1);
         }
         updates.priority = priority;

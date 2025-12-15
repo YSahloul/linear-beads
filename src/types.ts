@@ -197,3 +197,46 @@ export function linearToPriority(linearPriority: number): Priority {
   if (linearPriority === 0) return 4;
   return (linearPriority - 1) as Priority;
 }
+
+/**
+ * Priority name to number mapping
+ * Accepts: urgent/critical (0), high (1), medium/med (2), low (3), backlog/none (4)
+ */
+const PRIORITY_NAMES: Record<string, Priority> = {
+  urgent: 0,
+  critical: 0,
+  crit: 0,
+  high: 1,
+  medium: 2,
+  med: 2,
+  low: 3,
+  backlog: 4,
+  none: 4,
+};
+
+/**
+ * Parse priority from string (number or name)
+ * Returns { priority, error } - check error first
+ */
+export function parsePriority(value: string): { priority?: Priority; error?: string } {
+  // Try numeric first
+  const num = parseInt(value);
+  if (!isNaN(num)) {
+    if (num >= 0 && num <= 4) {
+      return { priority: num as Priority };
+    }
+    return {
+      error: `Invalid priority '${value}'. Must be 0-4 or: urgent, high, medium, low, backlog`,
+    };
+  }
+
+  // Try name
+  const name = value.toLowerCase();
+  if (name in PRIORITY_NAMES) {
+    return { priority: PRIORITY_NAMES[name] };
+  }
+
+  return {
+    error: `Invalid priority '${value}'. Must be 0-4 or: urgent, high, medium, low, backlog`,
+  };
+}
