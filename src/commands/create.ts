@@ -40,7 +40,7 @@ export const createCommand = new Command("create")
   .description("Create a new issue")
   .argument("<title>", "Issue title")
   .option("-d, --description <desc>", "Issue description")
-  .option("-t, --type <type>", "Issue type (bug, feature, task, epic, chore)", "task")
+  .option("-t, --type <type>", "Type: bug, feature, task, epic, chore", "task")
   .option("-p, --priority <priority>", "Priority: urgent, high, medium, low, backlog (or 0-4)", "2")
   .option("--parent <id>", "Parent issue ID (makes this a subtask)")
   .option("--deps <deps>", "Relations: 'blocks:ID' or 'discovered-from:ID' (NOT for subtasks, use --parent)")
@@ -59,7 +59,7 @@ export const createCommand = new Command("create")
 
       const validTypes = ["bug", "feature", "task", "epic", "chore"];
       if (!validTypes.includes(options.type)) {
-        console.error(`Type must be one of: ${validTypes.join(", ")}`);
+        console.error(`Invalid type '${options.type}'. Must be one of: ${validTypes.join(", ")}`);
         process.exit(1);
       }
 

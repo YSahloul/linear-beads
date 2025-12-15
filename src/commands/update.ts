@@ -42,7 +42,7 @@ export const updateCommand = new Command("update")
   .argument("<id>", "Issue ID")
   .option("--title <title>", "New title")
   .option("-d, --description <desc>", "New description")
-  .option("-s, --status <status>", "New status (open, in_progress, closed)")
+  .option("-s, --status <status>", "Status: open, in_progress, closed")
   .option("-p, --priority <priority>", "Priority: urgent, high, medium, low, backlog (or 0-4)")
   .option("--assign <email>", "Assign to user (email or 'me')")
   .option("--unassign", "Remove assignee")
@@ -68,7 +68,7 @@ export const updateCommand = new Command("update")
       if (options.status) {
         const validStatuses = ["open", "in_progress", "closed"];
         if (!validStatuses.includes(options.status)) {
-          outputError(`Status must be one of: ${validStatuses.join(", ")}`);
+          outputError(`Invalid status '${options.status}'. Must be one of: ${validStatuses.join(", ")}`);
           process.exit(1);
         }
         updates.status = options.status as IssueStatus;

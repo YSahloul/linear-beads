@@ -7,15 +7,19 @@ import { ensureFresh } from "../utils/sync.js";
 import { getCachedIssues, getDependencies, getDependents } from "../utils/database.js";
 import { formatIssuesListJson, formatIssuesListHuman, output } from "../utils/output.js";
 import { getViewer } from "../utils/linear.js";
-import type { Issue } from "../types.js";
+import type { Issue, IssueStatus, IssueType } from "../types.js";
+import { parsePriority } from "../types.js";
+
+const VALID_STATUSES: IssueStatus[] = ["open", "in_progress", "closed"];
+const VALID_TYPES: IssueType[] = ["bug", "feature", "task", "epic", "chore"];
 
 export const listCommand = new Command("list")
   .description("List issues")
   .option("-j, --json", "Output as JSON")
   .option("-a, --all", "Show all issues (not just mine)")
-  .option("-s, --status <status>", "Filter by status (open, in_progress, closed)")
-  .option("-p, --priority <priority>", "Filter by priority (0-4)")
-  .option("-t, --type <type>", "Filter by type (bug, feature, task, epic, chore)")
+  .option("-s, --status <status>", "Filter by status: open, in_progress, closed")
+  .option("-p, --priority <priority>", "Filter by priority: urgent, high, medium, low, backlog (or 0-4)")
+  .option("-t, --type <type>", "Filter by type: bug, feature, task, epic, chore")
   .option("--sync", "Force sync before listing")
   .option("--team <team>", "Team key (overrides config)")
   .action(async (options) => {
@@ -32,15 +36,27 @@ export const listCommand = new Command("list")
         issues = issues.filter((i) => !i.assignee || i.assignee === viewer.email);
       }
 
-      // Apply filters
+      // Apply filters with validation
       if (options.status) {
+        if (!VALID_STATUSES.includes(options.status)) {
+          console.error(`Invalid status '${options.status}'. Must be one of: ${VALID_STATUSES.join(", ")}`);
+          process.exit(1);
+        }
         issues = issues.filter((i) => i.status === options.status);
       }
       if (options.priority !== undefined) {
-        const p = parseInt(options.priority);
-        issues = issues.filter((i) => i.priority === p);
+        const { priority, error: priorityError } = parsePriority(options.priority);
+        if (priorityError || priority === undefined) {
+          console.error(priorityError);
+          process.exit(1);
+        }
+        issues = issues.filter((i) => i.priority === priority);
       }
       if (options.type) {
+        if (!VALID_TYPES.includes(options.type)) {
+          console.error(`Invalid type '${options.type}'. Must be one of: ${VALID_TYPES.join(", ")}`);
+          process.exit(1);
+        }
         issues = issues.filter((i) => i.issue_type === options.type);
       }
 
