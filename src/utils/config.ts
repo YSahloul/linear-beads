@@ -1,41 +1,126 @@
 /**
  * Configuration management for lb-cli
- * Loads from environment, config file, and CLI options
+ * Loads from environment, JSONC config files, and CLI options
+ * 
+ * Config sources (in priority order):
+ * 1. CLI options (highest priority)
+ * 2. Per-repo config (.lb/config.jsonc)
+ * 3. Global config (~/.config/lb/config.jsonc)
+ * 4. Environment variables
+ * 5. Defaults (lowest priority)
  */
 
-import { existsSync, readFileSync } from "fs";
-import { join, dirname } from "path";
+import type { HttpsLbCliDevConfigSchemaJson as ConfigTypes } from "../types/config.generated.js";
+import { join } from "path";
 import { homedir } from "os";
-import type { Config } from "../types.js";
+import { existsSync, readFileSync } from "fs";
 
-let loadedConfig: Config = {};
+// Combined config type that includes both schema-defined options and legacy env var options
+interface LoadedConfig extends ConfigTypes {
+  api_key?: string;
+  team_id?: string;
+  team_key?: string;
+}
+
+let loadedConfig: LoadedConfig | null = null;
 
 /**
- * Get global config path (~/.config/lb/config.json)
+ * Get global config path
  */
 export function getGlobalConfigPath(): string {
-  return join(homedir(), ".config", "lb", "config.json");
+  return join(homedir(), ".config", "lb", "config.jsonc");
 }
+
+/**
+ * Get per-repo config path (from git root or cwd)
+ */
+export function getRepoConfigPath(): string {
+  // Find git root or use cwd
+  let dir = process.cwd();
+  while (dir !== "/") {
+    if (existsSync(join(dir, ".git"))) {
+      break;
+    }
+    dir = join(dir, "..");
+  }
+  return join(dir, ".lb", "config.jsonc");
+}
+
+/**
+ * Parse JSONC file (handles comments)
+ * Returns null if file doesn't exist or is invalid
+ */
+export function parseJsoncFile(path: string): Record<string, unknown> | null {
+  try {
+    if (!existsSync(path)) return null;
+    const content = readFileSync(path, "utf-8");
+    // Strip single-line comments (//)
+    const withoutComments = content.replace(/\/\/.*$/gm, "");
+    return JSON.parse(withoutComments);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Deep merge two objects (target <- source)
+ * Source values override target values at all levels
+ */
+export function deepMerge<T extends Record<string, unknown>>(
+  target: T,
+  source: Partial<T>
+): T {
+  const result = { ...target };
+
+  for (const key in source) {
+    if (source[key] === undefined) continue;
+
+    if (
+      source[key] !== null &&
+      typeof source[key] === "object" &&
+      !Array.isArray(source[key])
+    ) {
+      // Recursively merge nested objects
+      result[key] = deepMerge(
+        (result[key] as Record<string, unknown>) || {},
+        source[key] as Record<string, unknown>
+      ) as T[typeof key];
+    } else {
+      // Direct assignment for primitives and arrays
+      result[key] = source[key] as T[typeof key];
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Default config values
+ */
+export const DEFAULT_CONFIG: LoadedConfig = {
+  use_issue_types: false,
+  cache_ttl_seconds: 120,
+};
 
 /**
  * Find git root directory
  */
-function findGitRoot(): string | null {
+function findGitRootDir(): string | null {
   let dir = process.cwd();
   while (dir !== "/") {
     if (existsSync(join(dir, ".git"))) {
       return dir;
     }
-    dir = dirname(dir);
+    dir = join(dir, "..");
   }
   return null;
 }
 
 /**
- * Get repo name from git remote or directory name
+ * Get repo name from git remote or directory name (heuristic fallback)
  */
-function getRepoName(): string {
-  const gitRoot = findGitRoot();
+function getRepoNameFromHeuristic(): string {
+  const gitRoot = findGitRootDir();
   if (gitRoot) {
     // Try to get from git remote
     try {
@@ -58,43 +143,26 @@ function getRepoName(): string {
 
 /**
  * Load config from various sources
- * Priority: env vars > project config > global config
  */
-function loadConfig(): Config {
-  const config: Config = {};
+function loadConfig(): LoadedConfig {
+  // Start with defaults
+  let config: LoadedConfig = { ...DEFAULT_CONFIG };
 
-  // 1. Load from global config first (~/.config/lb/config.json)
+  // 1. Load global config (~/.config/lb/config.jsonc)
   const globalConfigPath = getGlobalConfigPath();
-  if (existsSync(globalConfigPath)) {
-    try {
-      const content = readFileSync(globalConfigPath, "utf-8");
-      Object.assign(config, JSON.parse(content));
-    } catch {
-      // Ignore errors in global config
-    }
+  const globalConfig = parseJsoncFile(globalConfigPath);
+  if (globalConfig) {
+    config = deepMerge(config, globalConfig as Partial<LoadedConfig>);
   }
 
-  // 2. Try .lb.json in current dir or git root (overrides global)
-  const gitRoot = findGitRoot();
-  const configPaths = [".lb.json", ".lb/config.json"];
-  if (gitRoot) {
-    configPaths.push(join(gitRoot, ".lb.json"));
-    configPaths.push(join(gitRoot, ".lb", "config.json"));
+  // 2. Load per-repo config (.lb/config.jsonc) - overrides global
+  const repoConfigPath = getRepoConfigPath();
+  const repoConfig = parseJsoncFile(repoConfigPath);
+  if (repoConfig) {
+    config = deepMerge(config, repoConfig as Partial<LoadedConfig>);
   }
 
-  for (const path of configPaths) {
-    if (existsSync(path)) {
-      try {
-        const content = readFileSync(path, "utf-8");
-        Object.assign(config, JSON.parse(content));
-        break;
-      } catch {
-        // Continue to next path
-      }
-    }
-  }
-
-  // 3. Environment variables override everything
+  // 3. Environment variables override everything except CLI
   if (process.env.LINEAR_API_KEY) {
     config.api_key = process.env.LINEAR_API_KEY;
   }
@@ -108,33 +176,31 @@ function loadConfig(): Config {
     config.repo_name = process.env.LB_REPO_NAME;
   }
 
-  // 4. Default repo name from git
+  // 4. If repo_name not set in config, use heuristic (lowest priority)
   if (!config.repo_name) {
-    config.repo_name = getRepoName();
-  }
-
-  // 5. Default cache TTL
-  if (!config.cache_ttl_seconds) {
-    config.cache_ttl_seconds = 120; // 2 minutes
+    config.repo_name = getRepoNameFromHeuristic();
   }
 
   return config;
 }
 
-// Load on module init
+// Load config on module init
 loadedConfig = loadConfig();
 
 /**
  * Get a config option
  */
-export function getOption<K extends keyof Config>(key: K, cliValue?: Config[K]): Config[K] {
-  return cliValue ?? loadedConfig[key];
+export function getOption<K extends keyof LoadedConfig>(
+  key: K,
+  cliValue?: LoadedConfig[K]
+): LoadedConfig[K] {
+  return cliValue ?? (loadedConfig?.[key] as LoadedConfig[K]);
 }
 
 /**
  * Get full config
  */
-export function getConfig(): Config {
+export function getConfig(): LoadedConfig {
   return { ...loadedConfig };
 }
 
@@ -145,14 +211,14 @@ export function getApiKey(): string {
   const key = getOption("api_key");
   if (!key) {
     throw new Error(
-      "LINEAR_API_KEY is not set. Set it via environment variable or .lb.json config file."
+      "LINEAR_API_KEY environment variable is required. Set it via LINEAR_API_KEY env var."
     );
   }
   return key;
 }
 
 /**
- * Get team key - from config or directory name
+ * Get team key - from config or environment
  */
 export function getTeamKey(): string | undefined {
   return getOption("team_key");
@@ -170,21 +236,21 @@ export function getRepoLabel(): string {
  * Check if issue types are enabled
  */
 export function useTypes(): boolean {
-  return getOption("use_types") === true;
+  return getOption("use_issue_types") === true;
 }
 
 /**
- * Get the label group name for types
+ * Get repo name (for use by LIN-458)
  */
-export function getTypeLabelGroup(): string {
-  return getOption("type_label_group") || "Type";
+export function getRepoName(): string | undefined {
+  return getOption("repo_name");
 }
 
 /**
  * Get database path
  */
 export function getDbPath(): string {
-  const gitRoot = findGitRoot();
+  const gitRoot = findGitRootDir();
   const baseDir = gitRoot || process.cwd();
   return join(baseDir, ".lb", "cache.db");
 }

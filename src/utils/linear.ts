@@ -3,7 +3,7 @@
  */
 
 import { getGraphQLClient, ISSUE_FRAGMENT, ISSUE_WITH_RELATIONS_FRAGMENT } from "./graphql.js";
-import { getRepoLabel, getTeamKey, useTypes, getTypeLabelGroup } from "./config.js";
+import { getRepoLabel, getTeamKey, useTypes } from "./config.js";
 import {
   cacheIssue,
   cacheIssues,
@@ -129,7 +129,7 @@ export async function ensureRepoLabel(teamId: string): Promise<string> {
  */
 export async function ensureTypeLabel(teamId: string, type: IssueType): Promise<string> {
   const client = getGraphQLClient();
-  const groupName = getTypeLabelGroup();
+  const groupName = "Type";
   // Label names are capitalized (e.g., "Bug", "Feature")
   const labelName = type.charAt(0).toUpperCase() + type.slice(1);
 

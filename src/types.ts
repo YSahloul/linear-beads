@@ -132,8 +132,7 @@ export interface Config {
   repo_name?: string;
   cache_ttl_seconds?: number;
   // Issue type labeling (off by default)
-  use_types?: boolean;
-  type_label_group?: string; // Label group name, default "Type"
+  use_issue_types?: boolean;
 }
 
 /**
@@ -209,13 +208,7 @@ export function priorityToLinear(bdPriority: Priority): number {
   return bdPriority + 1;
 }
 
-/**
- * Map Linear priority to bd priority
- */
-export function linearToPriority(linearPriority: number): Priority {
-  if (linearPriority === 0) return 4;
-  return (linearPriority - 1) as Priority;
-}
+
 
 /**
  * Priority name to number mapping
