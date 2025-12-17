@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lb-cli.dev/config.schema.json",
+  "type": "object",
+  "properties": {
+    "team_key": {
+      "type": "string",
+      "description": "Default Linear team key (e.g., 'LIN'). Used when no team is specified in commands."
+    },
+    "repo_name": {
+      "type": "string",
+      "description": "Name used for repo: label in Linear. Overrides auto-detection from git remote or directory name."
+    },
+    "use_issue_types": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable issue type labels (Bug, Feature, Task, etc.) using Linear label groups. When false, types are not tracked."
+    },
+    "cache_ttl_seconds": {
+      "type": "integer",
+      "default": 120,
+      "minimum": 0,
+      "description": "How long to trust cached data before re-syncing from Linear, in seconds."
+    }
+  },
+  "additionalProperties": false
+}
