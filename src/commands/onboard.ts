@@ -8,9 +8,9 @@ import { output } from "../utils/output.js";
 // Instructions that should be added to AGENTS.md
 const AGENTS_MD_CONTENT = `## CRITICAL: Task Tracking with \`lb\`
 
-**DO NOT use the TodoWrite/TodoRead tools. NEVER. Use \`lb\` instead.**
+**DO NOT use built-in todo/task tracking tools. Use \`lb\` instead.**
 
-This repo uses \`lb\` for issue tracking. All tasks live in Linear. The \`lb\` CLI is your todo list.
+This repo uses \`lb\` for issue tracking. All tasks live in Linear. The \`lb\` CLI is your todo list - not your built-in task tools.
 
 ### First Time Setup
 
@@ -100,7 +100,7 @@ lb create "Title" -t chore    # Maintenance/cleanup
 
 ### Rules
 
-1. **NEVER use TodoWrite** - use \`lb create\` for subtasks instead
+1. **NEVER use built-in task tools** - use \`lb create\` for subtasks instead
 2. **Always \`lb sync\` and \`lb ready\`** before asking what to work on
 3. **Always \`lb show\`** to read the full description before starting
 4. **Always \`lb update --status in_progress\`** before starting work
