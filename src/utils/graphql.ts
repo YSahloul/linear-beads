@@ -82,4 +82,14 @@ export const ISSUE_WITH_RELATIONS_FRAGMENT = `
       }
     }
   }
+  inverseRelations {
+    nodes {
+      id
+      type
+      issue {
+        id
+        identifier
+      }
+    }
+  }
 `;

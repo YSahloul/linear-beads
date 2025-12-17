@@ -98,6 +98,16 @@ export interface LinearIssue {
       };
     }>;
   };
+  inverseRelations?: {
+    nodes: Array<{
+      id: string;
+      type: string;
+      issue: {
+        id: string;
+        identifier: string;
+      };
+    }>;
+  };
 }
 
 /**

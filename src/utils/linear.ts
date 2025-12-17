@@ -424,6 +424,14 @@ export async function fetchRelations(issueIds: string[]): Promise<void> {
             }
           }
         }
+        inverseRelations {
+          nodes {
+            type
+            issue {
+              identifier
+            }
+          }
+        }
       }
     }
   `;
@@ -444,14 +452,34 @@ export async function fetchRelations(issueIds: string[]): Promise<void> {
                   relatedIssue: { identifier: string };
                 }>;
               };
+              inverseRelations: {
+                nodes: Array<{
+                  type: string;
+                  issue: { identifier: string };
+                }>;
+              };
             } | null;
           }>(query, { id: issueId });
 
+          // Cache outgoing relations
           if (result.issue?.relations?.nodes) {
             for (const rel of result.issue.relations.nodes) {
               cacheDependency({
                 issue_id: result.issue.identifier,
                 depends_on_id: rel.relatedIssue.identifier,
+                type: rel.type === "blocks" ? "blocks" : "related",
+                created_at: new Date().toISOString(),
+                created_by: "sync",
+              });
+            }
+          }
+
+          // Cache incoming relations (inverse)
+          if (result.issue?.inverseRelations?.nodes) {
+            for (const rel of result.issue.inverseRelations.nodes) {
+              cacheDependency({
+                issue_id: rel.issue.identifier,
+                depends_on_id: result.issue.identifier,
                 type: rel.type === "blocks" ? "blocks" : "related",
                 created_at: new Date().toISOString(),
                 created_by: "sync",
@@ -504,12 +532,27 @@ export async function fetchIssue(issueId: string): Promise<Issue | null> {
       });
     }
 
-    // Cache other relations
+    // Cache other relations (outgoing: this issue blocks/relates to others)
     if (result.issue.relations?.nodes) {
       for (const rel of result.issue.relations.nodes) {
         cacheDependency({
           issue_id: result.issue.identifier,
           depends_on_id: rel.relatedIssue.identifier,
+          type: rel.type === "blocks" ? "blocks" : "related",
+          created_at: result.issue.createdAt,
+          created_by: "sync",
+        });
+      }
+    }
+
+    // Cache inverse relations (incoming: this issue is blocked by others)
+    if (result.issue.inverseRelations?.nodes) {
+      for (const rel of result.issue.inverseRelations.nodes) {
+        // Inverse "blocks" means: rel.issue blocks result.issue
+        // So we cache: rel.issue -> blocks -> result.issue
+        cacheDependency({
+          issue_id: rel.issue.identifier,
+          depends_on_id: result.issue.identifier,
           type: rel.type === "blocks" ? "blocks" : "related",
           created_at: result.issue.createdAt,
           created_by: "sync",
