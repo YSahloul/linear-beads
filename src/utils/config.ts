@@ -84,7 +84,7 @@ function loadConfigLayer(primaryPath: string): Record<string, unknown> | null {
  * Deep merge two objects (target <- source)
  * Source values override target values at all levels
  */
-export function deepMerge<T extends Record<string, unknown>>(
+export function deepMerge<T extends object>(
   target: T,
   source: Partial<T>
 ): T {
