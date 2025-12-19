@@ -29,7 +29,13 @@ program
   .description("Linear-native beads-style issue tracker")
   .version("0.1.0")
   .option("--worker", "Internal: run background sync worker")
-  .option("--export-worker", "Internal: run JSONL export worker");
+  .option("--export-worker", "Internal: run JSONL export worker")
+  .configureHelp({
+    subcommandTerm: (cmd) => {
+      const args = cmd.registeredArguments.map((a) => (a.required ? `<${a.name()}>` : `[${a.name()}]`));
+      return args.length ? `${cmd.name()} ${args.join(" ")}` : cmd.name();
+    },
+  });
 
 // Check for --worker flag before parsing commands
 if (process.argv.includes("--worker")) {
