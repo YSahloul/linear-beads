@@ -167,6 +167,26 @@ export function isCacheStale(ttlSeconds: number = 120): boolean {
 }
 
 /**
+ * Get last sync time and cache age info
+ */
+export function getCacheInfo(): { lastSync: Date | null; ageSeconds: number; isStale: boolean } {
+  const db = getDatabase();
+  const row = db.query("SELECT value FROM metadata WHERE key = 'last_sync'").get() as {
+    value: string;
+  } | null;
+
+  if (!row) {
+    return { lastSync: null, ageSeconds: Infinity, isStale: true };
+  }
+
+  const lastSync = new Date(row.value);
+  const now = new Date();
+  const ageSeconds = (now.getTime() - lastSync.getTime()) / 1000;
+
+  return { lastSync, ageSeconds, isStale: ageSeconds > 120 };
+}
+
+/**
  * Update last sync timestamp
  */
 export function updateLastSync(): void {

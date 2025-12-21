@@ -4,7 +4,7 @@
 
 import { Command } from "commander";
 import { ensureFresh } from "../utils/sync.js";
-import { getCachedIssues, getDependencies, getDependents } from "../utils/database.js";
+import { getCachedIssues, getDependencies, getDependents, getCacheInfo } from "../utils/database.js";
 import { formatIssuesListJson, formatIssuesListHuman, output } from "../utils/output.js";
 import { getViewer } from "../utils/linear.js";
 import type { IssueStatus } from "../types.js";
@@ -24,8 +24,13 @@ export const listCommand = new Command("list")
   .option("--team <team>", "Team key (overrides config)")
   .action(async (options) => {
     try {
-      // Ensure cache is fresh
-      await ensureFresh(options.team, options.sync);
+      // Try to ensure cache is fresh, but don't fail if offline
+      let syncFailed = false;
+      try {
+        await ensureFresh(options.team, options.sync);
+      } catch {
+        syncFailed = true;
+      }
 
       // Get issues from cache
       let issues = getCachedIssues();
@@ -99,6 +104,13 @@ export const listCommand = new Command("list")
           const status = issue.status.padEnd(12);
           
           output(`${issue.id}  ${status}  ${priorityName}  ${issue.title}${parentSuffix}`);
+        }
+        
+        // Show stale cache warning if sync failed or cache is old
+        const cacheInfo = getCacheInfo();
+        if (syncFailed || cacheInfo.ageSeconds > 300) {
+          const ageMinutes = Math.floor(cacheInfo.ageSeconds / 60);
+          output(`\n(cache ${ageMinutes}m old${syncFailed ? ", offline" : ""} - run lb sync to refresh)`);
         }
       }
     } catch (error) {
