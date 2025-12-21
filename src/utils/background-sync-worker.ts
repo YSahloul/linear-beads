@@ -1,9 +1,12 @@
 /**
  * Background sync worker - processes outbox queue
  * Should be spawned as a detached process by write commands
+ * 
+ * Polls outbox every 500ms, exits after 5s of inactivity.
+ * Parent can touch PID file to signal "stay alive" for new work.
  */
 
-import { writePidFile, removePidFile } from "./pid-manager.js";
+import { writePidFile, removePidFile, getPidFileMtime } from "./pid-manager.js";
 import { getPendingOutboxItems, removeOutboxItem, updateOutboxItemError } from "./database.js";
 import {
   getTeamId,
@@ -18,48 +21,77 @@ import {
 import { exportToJsonl } from "./jsonl.js";
 import type { Issue, IssueType, Priority } from "../types.js";
 
+const IDLE_TIMEOUT_MS = 5000;
+const POLL_INTERVAL_MS = 500;
+
 /**
- * Process the outbox queue until empty
+ * Process the outbox queue with polling and idle timeout
  */
 async function processOutbox(): Promise<void> {
   // Write our PID first
   writePidFile(process.pid);
 
+  let lastActivityTime = Date.now();
+  let lastPidMtime = getPidFileMtime();
+  let teamId: string | null = null;
+  let didWork = false;
+
   try {
     while (true) {
       const items = getPendingOutboxItems();
 
-      if (items.length === 0) {
-        // Queue is empty - we're done
-        break;
-      }
+      if (items.length > 0) {
+        // We have work - reset idle timer
+        lastActivityTime = Date.now();
+        didWork = true;
 
-      // Get team ID once for this batch
-      const teamId = await getTeamId();
+        // Get team ID once (cache it)
+        if (!teamId) {
+          teamId = await getTeamId();
+        }
 
-      // Process items one by one
-      for (const item of items) {
-        try {
-          await processOutboxItem(item, teamId);
-          removeOutboxItem(item.id);
-        } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : String(error);
-          console.error(`Failed to process outbox item ${item.id}:`, errorMsg);
-          updateOutboxItemError(item.id, errorMsg);
+        // Process items one by one
+        for (const item of items) {
+          try {
+            await processOutboxItem(item, teamId);
+            removeOutboxItem(item.id);
+          } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            console.error(`Failed to process outbox item ${item.id}:`, errorMsg);
+            updateOutboxItemError(item.id, errorMsg);
 
-          // Brief pause before continuing to next item
-          await sleep(1000);
+            // Brief pause before continuing to next item
+            await sleep(1000);
+          }
+        }
+      } else {
+        // No items - check if we should stay alive
+        const currentPidMtime = getPidFileMtime();
+        
+        // If PID file was touched since last check, reset idle timer
+        if (currentPidMtime > lastPidMtime) {
+          lastActivityTime = Date.now();
+          lastPidMtime = currentPidMtime;
+        }
+
+        // Check if we've been idle too long
+        if (Date.now() - lastActivityTime > IDLE_TIMEOUT_MS) {
+          break;
         }
       }
 
-      // Brief pause before checking for more items
-      await sleep(500);
+      // Poll interval
+      await sleep(POLL_INTERVAL_MS);
     }
 
-    // All done - pull latest from Linear and export to JSONL
-    const teamId = await getTeamId();
-    await fetchIssues(teamId);
-    exportToJsonl();
+    // Only sync if we actually did work
+    if (didWork) {
+      if (!teamId) {
+        teamId = await getTeamId();
+      }
+      await fetchIssues(teamId);
+      exportToJsonl();
+    }
 
     // Note: We intentionally skip fetching relations here.
     // Fetching relations for all issues is O(n) API calls which is too slow.
