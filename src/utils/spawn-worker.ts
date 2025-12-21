@@ -7,6 +7,8 @@ import { openSync, closeSync } from "fs";
 import { join, dirname } from "path";
 import { isWorkerRunning, touchPidFile } from "./pid-manager.js";
 import { getDbPath } from "./config.js";
+import { queueOutboxItem } from "./database.js";
+import type { OutboxItem } from "../types.js";
 
 /**
  * Get the command and args to run the worker
@@ -68,4 +70,16 @@ export function ensureOutboxProcessed(): void {
     // No worker - spawn one
     spawnWorker();
   }
+}
+
+/**
+ * Queue an operation and ensure it gets processed.
+ * This is the main entry point for async write operations.
+ */
+export function queueOperation(
+  operation: OutboxItem["operation"],
+  payload: Record<string, unknown>
+): void {
+  queueOutboxItem(operation, payload);
+  ensureOutboxProcessed();
 }
