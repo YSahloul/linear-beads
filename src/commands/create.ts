@@ -3,7 +3,7 @@
  */
 
 import { Command } from "commander";
-import { queueOutboxItem, generateLocalId, cacheIssue, cacheDependency } from "../utils/database.js";
+import { queueOutboxItem, generateLocalId, cacheIssue, cacheDependency, closeDatabase } from "../utils/database.js";
 import {
   createIssue,
   getTeamId,
@@ -175,6 +175,7 @@ export const createCommand = new Command("create")
         } else {
           output(`Created: ${localId}: ${title}`);
         }
+        closeDatabase();
         return;
       }
 

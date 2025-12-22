@@ -6,6 +6,7 @@ import { Command } from "commander";
 import { ensureFresh } from "../utils/sync.js";
 import { getCachedIssues, getCachedIssue, getBlockedIssueIds, getDatabase } from "../utils/database.js";
 import { output } from "../utils/output.js";
+import { isLocalOnly } from "../utils/config.js";
 
 
 /**
@@ -34,8 +35,10 @@ export const blockedCommand = new Command("blocked")
   .option("--team <team>", "Team key (overrides config)")
   .action(async (options) => {
     try {
-      // Ensure cache is fresh
-      await ensureFresh(options.team, options.sync);
+      // Ensure cache is fresh (skip in local-only mode)
+      if (!isLocalOnly()) {
+        await ensureFresh(options.team, options.sync);
+      }
 
       // Get all blocked issue IDs
       const blockedIds = getBlockedIssueIds();

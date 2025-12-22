@@ -27,6 +27,7 @@ export function getDatabase(): Database {
 
     db = new Database(dbPath);
     db.exec("PRAGMA journal_mode = WAL");
+    db.exec("PRAGMA synchronous = NORMAL");
     initSchema(db);
   }
   return db;
@@ -621,10 +622,16 @@ export function getLabelIdByName(name: string): string | null {
 }
 
 /**
- * Close database
+ * Close database, ensuring WAL is checkpointed
  */
 export function closeDatabase(): void {
   if (db) {
+    // Checkpoint WAL before closing to ensure all writes are in main DB
+    try {
+      db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    } catch {
+      // Ignore checkpoint errors on close
+    }
     db.close();
     db = null;
   }

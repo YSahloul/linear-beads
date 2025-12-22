@@ -9,7 +9,7 @@ import { formatIssuesListJson, formatIssuesListHuman, output } from "../utils/ou
 import { getViewer } from "../utils/linear.js";
 import type { IssueStatus } from "../types.js";
 import { parsePriority, VALID_ISSUE_TYPES } from "../types.js";
-import { useTypes } from "../utils/config.js";
+import { useTypes, isLocalOnly } from "../utils/config.js";
 
 const VALID_STATUSES: IssueStatus[] = ["open", "in_progress", "closed"];
 
@@ -26,17 +26,21 @@ export const listCommand = new Command("list")
     try {
       // Try to ensure cache is fresh, but don't fail if offline
       let syncFailed = false;
-      try {
-        await ensureFresh(options.team, options.sync);
-      } catch {
-        syncFailed = true;
+      const localOnly = isLocalOnly();
+      
+      if (!localOnly) {
+        try {
+          await ensureFresh(options.team, options.sync);
+        } catch {
+          syncFailed = true;
+        }
       }
 
       // Get issues from cache
       let issues = getCachedIssues();
 
-      // Filter by assignee unless --all
-      if (!options.all) {
+      // Filter by assignee unless --all (skip in local-only mode)
+      if (!options.all && !localOnly) {
         const viewer = await getViewer();
         issues = issues.filter((i) => !i.assignee || i.assignee === viewer.email);
       }
@@ -106,11 +110,13 @@ export const listCommand = new Command("list")
           output(`${issue.id}  ${status}  ${priorityName}  ${issue.title}${parentSuffix}`);
         }
         
-        // Show stale cache warning if sync failed or cache is old
-        const cacheInfo = getCacheInfo();
-        if (syncFailed || cacheInfo.ageSeconds > 300) {
-          const ageMinutes = Math.floor(cacheInfo.ageSeconds / 60);
-          output(`\n(cache ${ageMinutes}m old${syncFailed ? ", offline" : ""} - run lb sync to refresh)`);
+        // Show stale cache warning if sync failed or cache is old (skip in local-only mode)
+        if (!localOnly) {
+          const cacheInfo = getCacheInfo();
+          if (syncFailed || cacheInfo.ageSeconds > 300) {
+            const ageMinutes = Math.floor(cacheInfo.ageSeconds / 60);
+            output(`\n(cache ${ageMinutes}m old${syncFailed ? ", offline" : ""} - run lb sync to refresh)`);
+          }
         }
       }
     } catch (error) {
