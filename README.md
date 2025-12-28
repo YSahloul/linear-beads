@@ -4,6 +4,14 @@ Linear-backed issue tracking for AI agents. Inspired by [beads](https://github.c
 
 `lb` gives you beads-style issue tracking with Linear as the backend. Your issues live in Linear where you can see them, but agents interact through a fast CLI with JSON output, background sync, and dependency tracking. Backward-compatible interop (import/export) with [beads](https://github.com/steveyegge/beads) issues.jsonl.
 
+## Quickstart
+
+Tell your agent:
+
+> Run `lb onboard`
+
+That's it. The agent will walk you through setup (install, auth, etc.) and configure itself to use `lb` for task tracking.
+
 ## Install
 
 **Download a binary** from [releases](https://github.com/nikvdp/linear-beads/releases) and add it to your PATH.
@@ -13,26 +21,16 @@ Linear-backed issue tracking for AI agents. Inspired by [beads](https://github.c
 bun install -g github:nikvdp/linear-beads
 ```
 
-## Setup
+## What happens behind the scenes
 
-```bash
-# Authenticate with Linear (get your API key at https://linear.app/settings/api)
-lb auth
+When your agent runs `lb onboard`, it will:
 
-# In your project
-cd your-project
-lb init
-```
+1. **Install lb** if not already installed
+2. **Authenticate with Linear** (`lb auth`) - you'll be prompted for your API key
+3. **Initialize the project** (`lb init`) - creates `.lb/` directory and syncs with Linear
+4. **Update its instruction file** (CLAUDE.md or AGENTS.md) with lb usage instructions
 
-## Tell your agent
-
-Add this to your project's AGENTS.md or CLAUDE.md:
-
-```
-This project uses lb for issue tracking. Run `lb onboard` and follow the instructions.
-```
-
-Your agent will run `lb onboard`, which outputs everything it needs to set up AGENTS.md and start tracking work.
+After onboarding, your agent uses `lb` instead of its built-in task tools. Issues sync to Linear so you can see them in the Linear UI.
 
 ## Offline & Local-Only Modes
 
