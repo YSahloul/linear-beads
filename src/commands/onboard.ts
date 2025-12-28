@@ -108,8 +108,11 @@ This repo uses \`lb\` for Linear-backed issue tracking.
 
 ## Your Task
 
-**Add the following to this repo's AGENTS.md file** (create it if it doesn't exist).
-This ensures all future agents know to use \`lb\`:
+Add the following to your agent instruction file:
+- **Claude Code**: CLAUDE.md
+- **Other tools** (OpenCode, Cursor, etc.): AGENTS.md
+
+Append to the file if it exists, create it if it doesn't.
 
 ---
 
@@ -117,7 +120,7 @@ ${AGENTS_MD_CONTENT}
 
 ---
 
-After adding the above to AGENTS.md, run \`lb sync\` then \`lb ready\` to find work.
+After adding the above, run \`lb sync\` then \`lb ready\` to find work.
 `;
 
 export const onboardCommand = new Command("onboard")
