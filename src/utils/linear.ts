@@ -3,7 +3,15 @@
  */
 
 import { getGraphQLClient, ISSUE_FRAGMENT, ISSUE_WITH_RELATIONS_FRAGMENT } from "./graphql.js";
-import { getRepoLabel, getRepoName, getTeamKey, useTypes } from "./config.js";
+import {
+  getRepoLabel,
+  getRepoName,
+  getRepoScope,
+  getTeamKey,
+  useLabelScope,
+  useProjectScope,
+  useTypes,
+} from "./config.js";
 import {
   cacheIssue,
   cacheIssues,
@@ -424,16 +432,45 @@ export async function getWorkflowStateId(teamId: string, status: Issue["status"]
 /**
  * Fetch issues from Linear with repo scoping
  * Uses a simplified query to avoid Linear API complexity limits
+ * Supports label, project, or both scoping modes
  */
 export async function fetchIssues(teamId: string): Promise<Issue[]> {
   const client = getGraphQLClient();
-  const repoLabel = getRepoLabel();
+  const scope = getRepoScope();
+
+  // Build filter based on scoping mode
+  let filter: string;
+  let variables: Record<string, string> = { teamId };
+
+  if (scope === "project") {
+    // Project-only mode: filter by project name
+    const projectName = getRepoName() || "unknown";
+    filter = `filter: { project: { name: { eq: $projectName } } }`;
+    variables.projectName = projectName;
+  } else if (scope === "both") {
+    // Both mode: filter by label OR project (use 'or' combinator)
+    const repoLabel = getRepoLabel();
+    const projectName = getRepoName() || "unknown";
+    filter = `filter: { or: [{ labels: { name: { eq: $labelName } } }, { project: { name: { eq: $projectName } } }] }`;
+    variables.labelName = repoLabel;
+    variables.projectName = projectName;
+  } else {
+    // Label mode (default): filter by label
+    const repoLabel = getRepoLabel();
+    filter = `filter: { labels: { name: { eq: $labelName } } }`;
+    variables.labelName = repoLabel;
+  }
+
+  // Build variable declarations for GraphQL
+  const varDecls = Object.keys(variables)
+    .map((k) => `$${k}: String!`)
+    .join(", ");
 
   // Use simpler query without nested children/relations to avoid complexity limits
   const query = `
-    query GetIssues($teamId: String!, $labelName: String!) {
+    query GetIssues(${varDecls}) {
       team(id: $teamId) {
-        issues(filter: { labels: { name: { eq: $labelName } } }, first: 100) {
+        issues(${filter}, first: 100) {
           nodes {
             ${ISSUE_FRAGMENT}
           }
@@ -444,7 +481,7 @@ export async function fetchIssues(teamId: string): Promise<Issue[]> {
 
   const result = await client.request<{
     team: { issues: { nodes: LinearIssue[] } };
-  }>(query, { teamId, labelName: repoLabel });
+  }>(query, variables);
 
   const issues = result.team.issues.nodes.map(linearToBdIssue);
 
