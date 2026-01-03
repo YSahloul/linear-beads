@@ -713,14 +713,25 @@ export async function createIssue(params: {
 }): Promise<Issue> {
   const client = getGraphQLClient();
 
-  // Get required labels
-  const repoLabelId = await ensureRepoLabel(params.teamId);
-  const labelIds: string[] = [repoLabelId];
+  // Build label IDs based on scoping mode
+  const labelIds: string[] = [];
 
-  // Only add type label if types are enabled and type is provided
+  // Add repo label if using label or both scoping
+  if (useLabelScope()) {
+    const repoLabelId = await ensureRepoLabel(params.teamId);
+    labelIds.push(repoLabelId);
+  }
+
+  // Add type label if types are enabled and type is provided
   if (useTypes() && params.issueType) {
     const typeLabelId = await ensureTypeLabel(params.teamId, params.issueType);
     labelIds.push(typeLabelId);
+  }
+
+  // Get project ID if using project or both scoping
+  let projectId: string | undefined;
+  if (useProjectScope()) {
+    projectId = await ensureRepoProject(params.teamId);
   }
 
   const stateId = await getWorkflowStateId(params.teamId, params.status || "open");
@@ -751,9 +762,18 @@ export async function createIssue(params: {
     priority: priorityToLinear(params.priority),
     teamId: params.teamId,
     stateId,
-    labelIds,
     parentId: parentUuid,
   };
+
+  // Only include labelIds if we have labels
+  if (labelIds.length > 0) {
+    input.labelIds = labelIds;
+  }
+
+  // Add projectId if using project scoping
+  if (projectId) {
+    input.projectId = projectId;
+  }
 
   if (params.assigneeId) {
     input.assigneeId = params.assigneeId;
