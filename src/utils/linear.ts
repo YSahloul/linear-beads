@@ -551,12 +551,14 @@ export async function fetchAllIssuesPaginated(
   let hasMore = true;
 
   while (hasMore) {
-    const variables = { ...baseVariables, cursor };
+    // Always include cursor in variables (null for first page)
+    const variables = { ...baseVariables, cursor: cursor || null };
 
-    // Build variable declarations dynamically
-    const varDecls = Object.entries(variables)
+    // Build variable declarations - cursor is always included (optional String)
+    const varDecls = Object.entries(baseVariables)
       .filter(([, v]) => v !== undefined)
-      .map(([k]) => (k === "cursor" ? `$${k}: String` : `$${k}: String!`))
+      .map(([k]) => `$${k}: String!`)
+      .concat(["$cursor: String"])
       .join(", ");
 
     const query = `
@@ -638,29 +640,33 @@ export async function fetchUpdatedIssues(
 
   // Build scope filter based on mode
   let scopeFilter: string;
-  let variables: Record<string, string | undefined> = { teamId, since, cursor };
+  let baseVariables: Record<string, string> = { teamId, since };
 
   if (scope === "project") {
     const projectName = getRepoName() || "unknown";
     scopeFilter = `project: { name: { eq: $projectName } }`;
-    variables.projectName = projectName;
+    baseVariables.projectName = projectName;
   } else if (scope === "both") {
     const repoLabel = getRepoLabel();
     const projectName = getRepoName() || "unknown";
     scopeFilter = `or: [{ labels: { name: { eq: $labelName } } }, { project: { name: { eq: $projectName } } }]`;
-    variables.labelName = repoLabel;
-    variables.projectName = projectName;
+    baseVariables.labelName = repoLabel;
+    baseVariables.projectName = projectName;
   } else {
     const repoLabel = getRepoLabel();
     scopeFilter = `labels: { name: { eq: $labelName } }`;
-    variables.labelName = repoLabel;
+    baseVariables.labelName = repoLabel;
   }
 
-  // Build variable declarations dynamically
-  const varDecls = Object.entries(variables)
-    .filter(([, v]) => v !== undefined)
-    .map(([k]) => (k === "cursor" ? `$${k}: String` : `$${k}: String!`))
+  // Build variable declarations
+  // Note: since is DateTimeOrDuration type (Linear's custom scalar), cursor is optional String
+  const varDecls = Object.keys(baseVariables)
+    .map((k) => (k === "since" ? `$${k}: DateTimeOrDuration!` : `$${k}: String!`))
+    .concat(["$cursor: String"])
     .join(", ");
+
+  // Variables to send - include cursor as null if undefined
+  const variables = { ...baseVariables, cursor: cursor || null };
 
   // Combined filter: scope + updatedAt
   const filter = `filter: { ${scopeFilter}, updatedAt: { gt: $since } }`;
