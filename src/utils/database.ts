@@ -795,6 +795,32 @@ export function pruneStaleIssues(validIds: Set<string>): number {
 }
 
 /**
+ * Cache viewer info (current user)
+ */
+export function cacheViewer(viewer: { id: string; email: string; name: string }): void {
+  const db = getDatabase();
+  db.run("INSERT OR REPLACE INTO metadata (key, value) VALUES ('viewer', ?)", [
+    JSON.stringify(viewer),
+  ]);
+}
+
+/**
+ * Get cached viewer info (returns null if not cached)
+ */
+export function getCachedViewer(): { id: string; email: string; name: string } | null {
+  const db = getDatabase();
+  const row = db.query("SELECT value FROM metadata WHERE key = 'viewer'").get() as {
+    value: string;
+  } | null;
+  if (!row) return null;
+  try {
+    return JSON.parse(row.value);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Close database, ensuring WAL is checkpointed
  */
 export function closeDatabase(): void {

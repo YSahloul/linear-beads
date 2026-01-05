@@ -25,6 +25,8 @@ import {
   updateLastSync,
   updateLastFullSync,
   pruneStaleIssues,
+  cacheViewer,
+  getCachedViewer,
 } from "./database.js";
 import type { Issue, IssueType, Priority, LinearIssue, IssueStatus } from "../types.js";
 import {
@@ -1390,8 +1392,14 @@ export async function verifyConnection(): Promise<{
 
 /**
  * Get current user (viewer) - for auto-assign
+ * Uses cache first, falls back to API call and caches result.
  */
 export async function getViewer(): Promise<{ id: string; email: string; name: string }> {
+  // Try cache first
+  const cached = getCachedViewer();
+  if (cached) return cached;
+
+  // Fetch from API
   const client = getGraphQLClient();
 
   const query = `
@@ -1407,6 +1415,9 @@ export async function getViewer(): Promise<{ id: string; email: string; name: st
   const result = await client.request<{
     viewer: { id: string; email: string; name: string };
   }>(query);
+
+  // Cache for future calls
+  cacheViewer(result.viewer);
 
   return result.viewer;
 }
