@@ -116,10 +116,11 @@ export const listCommand = new Command("list")
           const deps = getDependencies(issue.id);
           const parentDep = deps.find((d) => d.type === "parent-child");
           const parentSuffix = parentDep ? ` (↳ ${parentDep.depends_on_id})` : "";
+          const syncSuffix = issue.sync_status === "pending" ? " (syncing...)" : "";
           const priorityName = ["crit", "high", "medi", "low", "back"][issue.priority] || "medi";
           const status = issue.status.padEnd(12);
 
-          output(`${issue.id}  ${status}  ${priorityName}  ${issue.title}${parentSuffix}`);
+          output(`${issue.id}  ${status}  ${priorityName}  ${issue.title}${parentSuffix}${syncSuffix}`);
         }
 
         // Show stale cache warning if sync failed or cache is old (skip in local-only mode)
