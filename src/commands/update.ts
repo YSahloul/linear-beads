@@ -3,7 +3,13 @@
  */
 
 import { Command } from "commander";
-import { queueOutboxItem, getCachedIssue, cacheIssue, cacheDependency } from "../utils/database.js";
+import {
+  queueOutboxItem,
+  getCachedIssue,
+  cacheIssue,
+  cacheDependency,
+  getDisplayId,
+} from "../utils/database.js";
 import {
   updateIssue,
   updateIssueParent,
@@ -196,7 +202,7 @@ export const updateCommand = new Command("update")
         if (options.json) {
           output(formatIssueJson(updated));
         } else {
-          output(formatIssueHuman(updated));
+          output(formatIssueHuman(updated, getDisplayId(updated.id)));
         }
         return;
       }
@@ -246,7 +252,7 @@ export const updateCommand = new Command("update")
           if (options.json) {
             output(formatIssueJson(issue));
           } else {
-            output(formatIssueHuman(issue));
+            output(formatIssueHuman(issue, getDisplayId(issue.id)));
           }
         }
       } else {
@@ -322,7 +328,7 @@ export const updateCommand = new Command("update")
           if (options.json) {
             output(formatIssueJson(updated));
           } else {
-            output(formatIssueHuman(updated));
+            output(formatIssueHuman(updated, getDisplayId(updated.id)));
           }
         } else {
           output(`Updated: ${id}`);

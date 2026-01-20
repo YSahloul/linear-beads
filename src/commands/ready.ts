@@ -10,6 +10,7 @@ import {
   getDependencies,
   getBlockedIssueIds,
   getCacheInfo,
+  getDisplayId,
 } from "../utils/database.js";
 import { formatReadyJson, output } from "../utils/output.js";
 import { getViewer } from "../utils/linear.js";
@@ -71,9 +72,11 @@ export const readyCommand = new Command("ready")
           // Check if this is a subtask
           const deps = getDependencies(issue.id);
           const parentDep = deps.find((d) => d.type === "parent-child");
-          const parentInfo = parentDep ? ` (↳ ${parentDep.depends_on_id})` : "";
+          const parentInfo = parentDep ? ` (↳ ${getDisplayId(parentDep.depends_on_id)})` : "";
 
-          output(`${index + 1}. [P${issue.priority}] ${issue.id}: ${issue.title}${parentInfo}`);
+          output(
+            `${index + 1}. [P${issue.priority}] ${getDisplayId(issue.id)}: ${issue.title}${parentInfo}`
+          );
         });
 
         // Show stale cache warning if sync failed or cache is old (skip in local-only mode)

@@ -9,6 +9,7 @@ import {
   cacheIssue,
   cacheDependency,
   getDatabase,
+  getDisplayId,
 } from "../utils/database.js";
 import {
   createIssue,
@@ -248,7 +249,7 @@ export const createCommand = new Command("create")
         if (options.json) {
           output(formatIssueJson(issue));
         } else {
-          output(formatIssueHuman(issue));
+          output(formatIssueHuman(issue, getDisplayId(issue.id)));
         }
       } else {
         // Queue mode: add to outbox and spawn background worker

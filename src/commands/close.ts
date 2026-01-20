@@ -3,7 +3,12 @@
  */
 
 import { Command } from "commander";
-import { queueOutboxItem, getCachedIssue, cacheIssue } from "../utils/database.js";
+import {
+  queueOutboxItem,
+  getCachedIssue,
+  cacheIssue,
+  getDisplayId,
+} from "../utils/database.js";
 import { closeIssue, getTeamId, fetchIssue } from "../utils/linear.js";
 import { formatIssueJson, formatIssueHuman, output, outputError } from "../utils/output.js";
 import { ensureOutboxProcessed } from "../utils/spawn-worker.js";
@@ -38,7 +43,7 @@ export const closeCommand = new Command("close")
         if (options.json) {
           output(formatIssueJson(closed));
         } else {
-          output(formatIssueHuman(closed));
+          output(formatIssueHuman(closed, getDisplayId(closed.id)));
         }
         return;
       }
@@ -51,7 +56,7 @@ export const closeCommand = new Command("close")
         if (options.json) {
           output(formatIssueJson(issue));
         } else {
-          output(formatIssueHuman(issue));
+          output(formatIssueHuman(issue, getDisplayId(issue.id)));
         }
       } else {
         // Queue mode: add to outbox and spawn background worker
@@ -85,7 +90,7 @@ export const closeCommand = new Command("close")
           if (options.json) {
             output(formatIssueJson(closed));
           } else {
-            output(formatIssueHuman(closed));
+            output(formatIssueHuman(closed, getDisplayId(closed.id)));
           }
         } else {
           output(`Closed: ${id}`);

@@ -885,6 +885,25 @@ export function getIssueIdMapping(localId: string): string | null {
 }
 
 /**
+ * Resolve Linear ID (identifier) back to local ID
+ */
+export function getLocalIdForLinearId(linearId: string): string | null {
+  const db = getDatabase();
+  const row = db
+    .query("SELECT local_id FROM issue_id_map WHERE linear_id = ?")
+    .get(linearId) as { local_id: string } | null;
+  return row?.local_id || null;
+}
+
+/**
+ * Format issue ID to include local ID when available
+ */
+export function getDisplayId(id: string): string {
+  const localId = getLocalIdForLinearId(id);
+  return localId ? `${id} (${localId})` : id;
+}
+
+/**
  * Replace a local issue ID with a Linear ID in cache + dependencies
  */
 export function replaceIssueId(localId: string, linearId: string): void {

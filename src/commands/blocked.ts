@@ -9,6 +9,7 @@ import {
   getCachedIssue,
   getBlockedIssueIds,
   getDatabase,
+  getDisplayId,
 } from "../utils/database.js";
 import { output } from "../utils/output.js";
 import { isLocalOnly } from "../utils/config.js";
@@ -80,10 +81,11 @@ export const blockedCommand = new Command("blocked")
 
         for (const issue of blockedIssues) {
           const blockers = getBlockersForIssue(issue.id);
-          output(`[P${issue.priority}] ${issue.id}: ${issue.title}`);
+          output(`[P${issue.priority}] ${getDisplayId(issue.id)}: ${issue.title}`);
           if (blockers.length > 0) {
+            const displayBlockers = blockers.map((id) => getDisplayId(id));
             output(
-              `  Blocked by ${blockers.length} open issue${blockers.length > 1 ? "s" : ""}: [${blockers.join(", ")}]`
+              `  Blocked by ${blockers.length} open issue${blockers.length > 1 ? "s" : ""}: [${displayBlockers.join(", ")}]`
             );
           }
         }

@@ -10,6 +10,7 @@ import {
   getDatabase,
   cacheDependency,
   deleteDependency,
+  getDisplayId,
 } from "../utils/database.js";
 import { output, outputError } from "../utils/output.js";
 import { queueOperation } from "../utils/spawn-worker.js";
@@ -64,10 +65,10 @@ function printTree(
 
   if (prefix === "") {
     // Root node
-    output(`${issueId}: ${title} [P${priority}] (${status})${readyTag}`);
+    output(`${getDisplayId(issueId)}: ${title} [P${priority}] (${status})${readyTag}`);
   } else {
     output(
-      `${prefix}${isLast ? "└── " : "├── "}${issueId}: ${title} [P${priority}] (${status})${readyTag}`
+      `${prefix}${isLast ? "└── " : "├── "}${getDisplayId(issueId)}: ${title} [P${priority}] (${status})${readyTag}`
     );
   }
 
@@ -123,7 +124,7 @@ const addCommand = new Command("add")
             type: "blocks",
           }, issueId);
         }
-        output(`Added: ${issueId} blocks ${options.blocks}`);
+        output(`Added: ${getDisplayId(issueId)} blocks ${getDisplayId(options.blocks)}`);
       }
 
       if (options.blockedBy) {
@@ -147,7 +148,7 @@ const addCommand = new Command("add")
             type: "blocks",
           }, options.blockedBy);
         }
-        output(`Added: ${issueId} is blocked by ${options.blockedBy}`);
+        output(`Added: ${getDisplayId(issueId)} is blocked by ${getDisplayId(options.blockedBy)}`);
       }
 
       if (options.related) {
@@ -170,7 +171,7 @@ const addCommand = new Command("add")
             type: "related",
           }, issueId);
         }
-        output(`Added: ${issueId} related to ${options.related}`);
+        output(`Added: ${getDisplayId(issueId)} related to ${getDisplayId(options.related)}`);
       }
     } catch (error) {
       outputError(error instanceof Error ? error.message : String(error));
@@ -199,7 +200,7 @@ const removeCommand = new Command("remove")
           issueB,
         }, issueA);
       }
-      output(`Removed dependency between ${issueA} and ${issueB}`);
+      output(`Removed dependency between ${getDisplayId(issueA)} and ${getDisplayId(issueB)}`);
     } catch (error) {
       outputError(error instanceof Error ? error.message : String(error));
       process.exit(1);
