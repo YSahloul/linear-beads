@@ -4,7 +4,12 @@
 
 import { Command } from "commander";
 import { deleteIssue } from "../utils/linear.js";
-import { deleteCachedIssue, getCachedIssue, queueOutboxItem } from "../utils/database.js";
+import {
+  deleteCachedIssue,
+  getCachedIssue,
+  queueOutboxItem,
+  getDisplayId,
+} from "../utils/database.js";
 import { output } from "../utils/output.js";
 import { ensureOutboxProcessed } from "../utils/spawn-worker.js";
 import { isLocalOnly } from "../utils/config.js";
@@ -23,7 +28,7 @@ export const deleteCommand = new Command("delete")
 
       if (!options.force) {
         // Show what will be deleted
-        output(`Will delete: ${id}: ${title}`);
+        output(`Will delete: ${getDisplayId(id)}: ${title}`);
         output(`This is permanent and cannot be undone.`);
         output(`Run with --force to confirm.`);
         process.exit(0);
@@ -35,7 +40,7 @@ export const deleteCommand = new Command("delete")
         if (options.json) {
           output(JSON.stringify({ deleted: id, title }));
         } else {
-          output(`Deleted: ${id}: ${title}`);
+          output(`Deleted: ${getDisplayId(id)}: ${title}`);
         }
         return;
       }
@@ -48,7 +53,7 @@ export const deleteCommand = new Command("delete")
         if (options.json) {
           output(JSON.stringify({ deleted: id, title }));
         } else {
-          output(`Deleted: ${id}: ${title}`);
+          output(`Deleted: ${getDisplayId(id)}: ${title}`);
         }
       } else {
         // Queue mode: add to outbox and spawn background worker
@@ -63,7 +68,7 @@ export const deleteCommand = new Command("delete")
         if (options.json) {
           output(JSON.stringify({ deleted: id, title, queued: true }));
         } else {
-          output(`Deleted: ${id}: ${title}`);
+          output(`Deleted: ${getDisplayId(id)}: ${title}`);
         }
       }
     } catch (error) {

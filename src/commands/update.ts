@@ -331,7 +331,7 @@ export const updateCommand = new Command("update")
             output(formatIssueHuman(updated, getDisplayId(updated.id)));
           }
         } else {
-          output(`Updated: ${id}`);
+          output(`Updated: ${getDisplayId(id)}`);
         }
       }
     } catch (error) {

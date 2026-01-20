@@ -93,7 +93,7 @@ export const closeCommand = new Command("close")
             output(formatIssueHuman(closed, getDisplayId(closed.id)));
           }
         } else {
-          output(`Closed: ${id}`);
+          output(`Closed: ${getDisplayId(id)}`);
         }
       }
     } catch (error) {
