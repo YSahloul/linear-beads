@@ -8,9 +8,20 @@ import { output } from "../utils/output.js";
 // Instructions that should be added to AGENTS.md
 const AGENTS_MD_CONTENT = `## CRITICAL: Task Tracking with \`lb\`
 
-**DO NOT use built-in todo/task tracking tools. Use \`lb\` instead.**
+> **STOP. READ THIS CAREFULLY.**
+>
+> **DO NOT use TodoWrite, TodoRead, or ANY built-in todo/task tracking tools.**
+> **NEVER. Not even "just this once." Not even for "quick notes."**
+>
+> If you need to track subtasks or intermediate steps, create \`lb\` subissues:
+> \`\`\`bash
+> lb create "Step 1: ..." --parent LIN-XXX
+> lb create "Step 2: ..." --parent LIN-XXX
+> \`\`\`
+>
+> Your built-in todo tools are DISABLED for this repo. Use \`lb\` or nothing.
 
-This repo uses \`lb\` for issue tracking. All tasks live in Linear. The \`lb\` CLI is your todo list - not your built-in task tools.
+This repo uses \`lb\` for issue tracking. All tasks live in Linear. The \`lb\` CLI is your todo list.
 
 ### Quick Start
 
@@ -50,14 +61,21 @@ lb dep tree LIN-A          # Visualize dependency tree
 - \`--related ID\` - Soft link, doesn't block progress
 - \`--discovered-from ID\` - Found while working on ID (creates relation)
 
-### Planning Work
+### Planning Work (USE THIS INSTEAD OF BUILT-IN TODOS)
 
-Break down tasks into subtasks:
+When you need to break down a task into steps, **create subissues in lb** - NOT built-in todos:
 
 \`\`\`bash
+# WRONG: Using built-in todos (DON'T DO THIS)
+# TodoWrite([{content: "Step 1", status: "pending"}, ...])
+
+# RIGHT: Create lb subissues
 lb create "Step 1: Do X" --parent LIN-XXX -d "Details..."
 lb create "Step 2: Do Y" --parent LIN-XXX -d "Details..."
+lb create "Step 3: Do Z" --parent LIN-XXX --blocked-by LIN-YYY  # If order matters
 \`\`\`
+
+This keeps all work visible in Linear and preserves context across sessions.
 
 ### Workflow
 
@@ -95,12 +113,29 @@ lb show LIN-XXX            # Full details with all relationships
 
 ### Rules
 
-1. **NEVER use built-in task tools** - use \`lb create\` for subtasks
-2. **Always \`lb ready\`** before asking what to work on
+1. **NEVER use built-in task/todo tools (TodoWrite, TodoRead, etc.)** 
+   - Not for planning, not for tracking, not for anything
+   - If you need subtasks: \`lb create "..." --parent LIN-XXX\`
+   - If you need to track steps: create subissues
+   - There is NO exception to this rule
+2. **Always \`lb sync\` then \`lb ready\`** before asking what to work on
 3. **Always \`lb show\`** to read the full description before starting
 4. **Link discovered work** with \`--discovered-from\` to maintain context graph
 5. **Include descriptions** with enough context for handoff
-6. **Close with reasons** explaining what was done`;
+6. **Close with reasons** explaining what was done
+
+### Why No Built-in Todos?
+
+- Built-in todos disappear between sessions
+- Other agents/humans can't see them
+- Work gets lost or duplicated
+- Linear is the single source of truth
+
+When you use \`lb\` subissues instead:
+- Work persists across sessions
+- Other agents can pick up where you left off
+- Progress is visible to humans in Linear
+- Dependencies are tracked properly`;
 
 const ONBOARD_CONTENT = `# lb Onboard
 
