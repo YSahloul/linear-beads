@@ -267,7 +267,7 @@ export const updateCommand = new Command("update")
         // Remove assigneeId from payload - worker will resolve it
         delete payload.assigneeId;
 
-        queueOutboxItem("update", payload);
+        queueOutboxItem("update", payload, id);
 
         // Spawn background worker if not already running
         ensureOutboxProcessed();
@@ -275,11 +275,50 @@ export const updateCommand = new Command("update")
         // Return cached issue with updates applied
         let issue = getCachedIssue(id);
         if (!issue) {
-          issue = await fetchIssue(id);
+          try {
+            issue = await fetchIssue(id);
+          } catch {
+            issue = null;
+          }
         }
 
+        const now = new Date().toISOString();
+
         if (issue) {
-          const updated = { ...issue, ...updates, updated_at: new Date().toISOString() };
+          const updated = { ...issue, ...updates, updated_at: now };
+          cacheIssue(updated);
+
+          if (options.parent) {
+            cacheDependency({
+              issue_id: id,
+              depends_on_id: options.parent,
+              type: "parent-child",
+              created_at: now,
+              created_by: "local",
+            });
+          }
+
+          for (const dep of allDeps) {
+            if (dep.type === "blocked-by") {
+              cacheDependency({
+                issue_id: dep.targetId,
+                depends_on_id: id,
+                type: "blocks",
+                created_at: now,
+                created_by: "local",
+              });
+            } else {
+              const depType = dep.type === "blocks" ? "blocks" : "related";
+              cacheDependency({
+                issue_id: id,
+                depends_on_id: dep.targetId,
+                type: depType as "blocks" | "related",
+                created_at: now,
+                created_by: "local",
+              });
+            }
+          }
+
           if (options.json) {
             output(formatIssueJson(updated));
           } else {

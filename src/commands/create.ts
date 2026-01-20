@@ -8,6 +8,7 @@ import {
   generateLocalId,
   cacheIssue,
   cacheDependency,
+  getDatabase,
 } from "../utils/database.js";
 import {
   createIssue,
@@ -254,6 +255,21 @@ export const createCommand = new Command("create")
         // For queue mode, we pass the assign/unassign flags
         // The worker will resolve them when processing
 
+        const localId = generateLocalId();
+        const now = new Date().toISOString();
+
+        const issue: Issue = {
+          id: localId,
+          title,
+          description: options.description,
+          status: "open",
+          priority,
+          issue_type: issueType,
+          sync_status: "pending",
+          created_at: now,
+          updated_at: now,
+        };
+
         // Convert allDeps to string format for queue
         const depsString = allDeps.map((d) => `${d.type}:${d.targetId}`).join(",");
 
@@ -269,27 +285,53 @@ export const createCommand = new Command("create")
         if (issueType) {
           payload.issueType = issueType;
         }
-        queueOutboxItem("create", payload);
+
+        const db = getDatabase();
+        const transaction = db.transaction(() => {
+          cacheIssue(issue);
+
+          if (options.parent) {
+            cacheDependency({
+              issue_id: localId,
+              depends_on_id: options.parent,
+              type: "parent-child",
+              created_at: now,
+              created_by: "local",
+            });
+          }
+
+          for (const dep of allDeps) {
+            if (dep.type === "blocked-by") {
+              cacheDependency({
+                issue_id: dep.targetId,
+                depends_on_id: localId,
+                type: "blocks",
+                created_at: now,
+                created_by: "local",
+              });
+            } else {
+              const depType = dep.type === "blocks" ? "blocks" : "related";
+              cacheDependency({
+                issue_id: localId,
+                depends_on_id: dep.targetId,
+                type: depType as "blocks" | "related",
+                created_at: now,
+                created_by: "local",
+              });
+            }
+          }
+
+          queueOutboxItem("create", payload, localId);
+        });
+        transaction();
 
         // Spawn background worker if not already running
         ensureOutboxProcessed();
 
-        // Return a placeholder response immediately
-        const placeholder: Issue = {
-          id: "pending",
-          title,
-          description: options.description,
-          status: "open" as const,
-          priority,
-          issue_type: issueType,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-
         if (options.json) {
-          output(formatIssueJson(placeholder));
+          output(formatIssueJson(issue));
         } else {
-          output(`Created: ${title}`);
+          output(`Created: ${localId}: ${title} (syncing...)`);
         }
       }
     } catch (error) {

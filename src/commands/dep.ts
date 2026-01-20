@@ -121,7 +121,7 @@ const addCommand = new Command("add")
             issueId,
             relatedIssueId: options.blocks,
             type: "blocks",
-          });
+          }, issueId);
         }
         output(`Added: ${issueId} blocks ${options.blocks}`);
       }
@@ -145,7 +145,7 @@ const addCommand = new Command("add")
             issueId: options.blockedBy,
             relatedIssueId: issueId,
             type: "blocks",
-          });
+          }, options.blockedBy);
         }
         output(`Added: ${issueId} is blocked by ${options.blockedBy}`);
       }
@@ -168,7 +168,7 @@ const addCommand = new Command("add")
             issueId,
             relatedIssueId: options.related,
             type: "related",
-          });
+          }, issueId);
         }
         output(`Added: ${issueId} related to ${options.related}`);
       }
@@ -197,7 +197,7 @@ const removeCommand = new Command("remove")
         queueOperation("delete_relation", {
           issueA,
           issueB,
-        });
+        }, issueA);
       }
       output(`Removed dependency between ${issueA} and ${issueB}`);
     } catch (error) {

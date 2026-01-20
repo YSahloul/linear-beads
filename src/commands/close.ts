@@ -58,7 +58,7 @@ export const closeCommand = new Command("close")
         queueOutboxItem("close", {
           issueId: id,
           reason: options.reason,
-        });
+        }, id);
 
         // Ensure worker processes the outbox
         ensureOutboxProcessed();
@@ -66,16 +66,22 @@ export const closeCommand = new Command("close")
         // Return cached issue with status updated
         let issue = getCachedIssue(id);
         if (!issue) {
-          issue = await fetchIssue(id);
+          try {
+            issue = await fetchIssue(id);
+          } catch {
+            issue = null;
+          }
         }
 
         if (issue) {
+          const now = new Date().toISOString();
           const closed = {
             ...issue,
             status: "closed" as const,
-            closed_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
+            closed_at: now,
+            updated_at: now,
           };
+          cacheIssue(closed);
           if (options.json) {
             output(formatIssueJson(closed));
           } else {

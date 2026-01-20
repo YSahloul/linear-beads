@@ -52,7 +52,7 @@ export const deleteCommand = new Command("delete")
         }
       } else {
         // Queue mode: add to outbox and spawn background worker
-        queueOutboxItem("delete", { issueId: id });
+        queueOutboxItem("delete", { issueId: id }, id);
 
         // Optimistically remove from cache so it disappears immediately
         deleteCachedIssue(id);
