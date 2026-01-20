@@ -10,18 +10,18 @@ const AGENTS_MD_CONTENT = `## CRITICAL: Task Tracking with \`lb\`
 
 > **STOP. READ THIS CAREFULLY.**
 >
-> **DO NOT use TodoWrite, TodoRead, or ANY built-in todo/task tracking tools.**
-> **NEVER. Not even "just this once." Not even for "quick notes."**
+> **DO NOT use your built-in todo/task tracking tools for this repo.**
+> **No todo lists, no task trackers, no scratchpads - ONLY \`lb\`.**
 >
-> If you need to track subtasks or intermediate steps, create \`lb\` subissues:
+> Need to track subtasks or steps? Create subissues:
 > \`\`\`bash
 > lb create "Step 1: ..." --parent LIN-XXX
 > lb create "Step 2: ..." --parent LIN-XXX
 > \`\`\`
 >
-> Your built-in todo tools are DISABLED for this repo. Use \`lb\` or nothing.
+> \`lb\` IS your todo list. There is no other.
 
-This repo uses \`lb\` for issue tracking. All tasks live in Linear. The \`lb\` CLI is your todo list.
+This repo uses \`lb\` for all task management. All tasks live in Linear.
 
 ### Quick Start
 
@@ -61,21 +61,21 @@ lb dep tree LIN-A          # Visualize dependency tree
 - \`--related ID\` - Soft link, doesn't block progress
 - \`--discovered-from ID\` - Found while working on ID (creates relation)
 
-### Planning Work (USE THIS INSTEAD OF BUILT-IN TODOS)
+### Planning Work (SUBISSUES, NOT BUILT-IN TODOS)
 
-When you need to break down a task into steps, **create subissues in lb** - NOT built-in todos:
+When you need to break down a task into steps, **create subissues in lb**:
 
 \`\`\`bash
-# WRONG: Using built-in todos (DON'T DO THIS)
-# TodoWrite([{content: "Step 1", status: "pending"}, ...])
-
-# RIGHT: Create lb subissues
 lb create "Step 1: Do X" --parent LIN-XXX -d "Details..."
 lb create "Step 2: Do Y" --parent LIN-XXX -d "Details..."
 lb create "Step 3: Do Z" --parent LIN-XXX --blocked-by LIN-YYY  # If order matters
 \`\`\`
 
-This keeps all work visible in Linear and preserves context across sessions.
+**Why subissues instead of your built-in task tools?**
+- Subissues persist across sessions - built-in todos don't
+- Other agents and humans can see them in Linear
+- Dependencies are tracked properly
+- Work doesn't get lost or duplicated
 
 ### Workflow
 
@@ -113,10 +113,10 @@ lb show LIN-XXX            # Full details with all relationships
 
 ### Rules
 
-1. **NEVER use built-in task/todo tools (TodoWrite, TodoRead, etc.)** 
+1. **NEVER use built-in task/todo tools** - ONLY \`lb\`
    - Not for planning, not for tracking, not for anything
+   - Your memory can be wiped - \`lb\` tickets are persistent
    - If you need subtasks: \`lb create "..." --parent LIN-XXX\`
-   - If you need to track steps: create subissues
    - There is NO exception to this rule
 2. **Always \`lb sync\` then \`lb ready\`** before asking what to work on
 3. **Always \`lb show\`** to read the full description before starting
@@ -124,18 +124,27 @@ lb show LIN-XXX            # Full details with all relationships
 5. **Include descriptions** with enough context for handoff
 6. **Close with reasons** explaining what was done
 
-### Why No Built-in Todos?
+### Why No Built-in Task Tools?
 
-- Built-in todos disappear between sessions
-- Other agents/humans can't see them
-- Work gets lost or duplicated
-- Linear is the single source of truth
+- **Built-in task tracking is ephemeral** - disappears when you're restarted
+- **Other agents/humans can't see your internal todos** - they're siloed
+- **Work gets lost or duplicated** - same task appears multiple times
+- **Linear is the persistent source of truth** - everyone sees it
 
-When you use \`lb\` subissues instead:
-- Work persists across sessions
-- Other agents can pick up where you left off
-- Progress is visible to humans in Linear
-- Dependencies are tracked properly`;
+### Critical for AI Agents: Memory is Ephemeral
+
+**Your memory can be wiped at any time.** Without external persistence:
+- Critical decisions get lost
+- You can't resume work from where you left off
+- Other agents start from scratch
+
+**Offload everything important to \`lb\` tickets:**
+- Design decisions, context, research findings
+- Implementation notes and code snippets  
+- Blockers and dependencies
+- "Where I left off" checkpoints
+
+**Think of \`lb\` as your persistent brain supplement.** Your memory is cache, \`lb\` is database.
 
 const ONBOARD_CONTENT = `# lb Onboard
 
