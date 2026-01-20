@@ -145,6 +145,7 @@ lb show LIN-XXX            # Full details with all relationships
 - "Where I left off" checkpoints
 
 **Think of \`lb\` as your persistent brain supplement.** Your memory is cache, \`lb\` is database.
+`;
 
 const ONBOARD_CONTENT = `# lb Onboard
 
