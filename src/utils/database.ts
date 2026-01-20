@@ -899,8 +899,11 @@ export function getLocalIdForLinearId(linearId: string): string | null {
  * Format issue ID to include local ID when available
  */
 export function getDisplayId(id: string): string {
-  const localId = getLocalIdForLinearId(id);
-  return localId ? `${id} (${localId})` : id;
+  if (id.startsWith("LOCAL-")) {
+    const linearId = getIssueIdMapping(id);
+    return linearId || id;
+  }
+  return id;
 }
 
 /**
