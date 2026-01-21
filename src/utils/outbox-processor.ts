@@ -13,6 +13,7 @@ import {
   getParentId,
   getChildIds,
   getCachedIssue,
+  isLocalId,
 } from "./database.js";
 import {
   createIssue,
@@ -23,12 +24,6 @@ import {
   createRelation,
   deleteRelation,
 } from "./linear.js";
-
-const LOCAL_ID_PREFIX = "LOCAL-";
-
-function isLocalId(id: string): boolean {
-  return id.startsWith(LOCAL_ID_PREFIX);
-}
 
 function resolveDepsString(
   deps: string,

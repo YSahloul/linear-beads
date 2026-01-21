@@ -11,6 +11,7 @@ import { requestJsonlExport } from "./jsonl-scheduler.js";
 import type { Issue, Dependency, OutboxItem } from "../types.js";
 
 let db: Database | null = null;
+const LOCAL_ID_PREFIX = "LOCAL-";
 
 /**
  * Get database singleton, initializing schema if needed
@@ -454,10 +455,10 @@ export function cacheIssues(issues: Array<Issue & { linear_state_id?: string }>)
  */
 export function getCachedIssue(id: string): Issue | null {
   const db = getDatabase();
-  const row = db.query("SELECT * FROM issues WHERE id = ? OR identifier = ?").get(id, id) as Record<
-    string,
-    unknown
-  > | null;
+  const resolvedId = resolveIssueId(id);
+  const row = db
+    .query("SELECT * FROM issues WHERE id = ? OR identifier = ?")
+    .get(resolvedId, resolvedId) as Record<string, unknown> | null;
 
   if (!row) return null;
 
@@ -533,7 +534,8 @@ export function cacheDependency(dep: Dependency): void {
  */
 export function clearIssueDependencies(issueId: string): void {
   const db = getDatabase();
-  db.run("DELETE FROM dependencies WHERE issue_id = ?", [issueId]);
+  const resolvedId = resolveIssueId(issueId);
+  db.run("DELETE FROM dependencies WHERE issue_id = ?", [resolvedId]);
   requestJsonlExport();
 }
 
@@ -542,14 +544,16 @@ export function clearIssueDependencies(issueId: string): void {
  */
 export function deleteDependency(issueId: string, dependsOnId: string): void {
   const db = getDatabase();
+  const resolvedIssueId = resolveIssueId(issueId);
+  const resolvedDependsOnId = resolveIssueId(dependsOnId);
   db.run("DELETE FROM dependencies WHERE issue_id = ? AND depends_on_id = ?", [
-    issueId,
-    dependsOnId,
+    resolvedIssueId,
+    resolvedDependsOnId,
   ]);
   // Also try the reverse direction
   db.run("DELETE FROM dependencies WHERE issue_id = ? AND depends_on_id = ?", [
-    dependsOnId,
-    issueId,
+    resolvedDependsOnId,
+    resolvedIssueId,
   ]);
   requestJsonlExport();
 }
@@ -559,7 +563,8 @@ export function deleteDependency(issueId: string, dependsOnId: string): void {
  */
 export function getDependencies(issueId: string): Dependency[] {
   const db = getDatabase();
-  const rows = db.query("SELECT * FROM dependencies WHERE issue_id = ?").all(issueId) as Array<
+  const resolvedId = resolveIssueId(issueId);
+  const rows = db.query("SELECT * FROM dependencies WHERE issue_id = ?").all(resolvedId) as Array<
     Record<string, unknown>
   >;
 
@@ -586,9 +591,10 @@ export function getParentId(issueId: string): string | null {
  */
 export function getChildIds(issueId: string): string[] {
   const db = getDatabase();
+  const resolvedId = resolveIssueId(issueId);
   const rows = db
     .query("SELECT issue_id FROM dependencies WHERE depends_on_id = ? AND type = 'parent-child'")
-    .all(issueId) as Array<{ issue_id: string }>;
+    .all(resolvedId) as Array<{ issue_id: string }>;
   return rows.map((r) => r.issue_id);
 }
 
@@ -597,9 +603,10 @@ export function getChildIds(issueId: string): string[] {
  */
 export function getInverseDependencies(issueId: string): Dependency[] {
   const db = getDatabase();
-  const rows = db.query("SELECT * FROM dependencies WHERE depends_on_id = ?").all(issueId) as Array<
-    Record<string, unknown>
-  >;
+  const resolvedId = resolveIssueId(issueId);
+  const rows = db
+    .query("SELECT * FROM dependencies WHERE depends_on_id = ?")
+    .all(resolvedId) as Array<Record<string, unknown>>;
 
   return rows.map((row) => ({
     issue_id: row.issue_id as string,
@@ -615,9 +622,10 @@ export function getInverseDependencies(issueId: string): Dependency[] {
  */
 export function getDependents(issueId: string): Dependency[] {
   const db = getDatabase();
-  const rows = db.query("SELECT * FROM dependencies WHERE depends_on_id = ?").all(issueId) as Array<
-    Record<string, unknown>
-  >;
+  const resolvedId = resolveIssueId(issueId);
+  const rows = db
+    .query("SELECT * FROM dependencies WHERE depends_on_id = ?")
+    .all(resolvedId) as Array<Record<string, unknown>>;
 
   return rows.map((row) => ({
     issue_id: row.issue_id as string,
@@ -773,8 +781,12 @@ export function clearIssuesCache(): void {
  */
 export function deleteCachedIssue(issueId: string): void {
   const db = getDatabase();
-  db.run("DELETE FROM issues WHERE id = ?", [issueId]);
-  db.run("DELETE FROM dependencies WHERE issue_id = ? OR depends_on_id = ?", [issueId, issueId]);
+  const resolvedId = resolveIssueId(issueId);
+  db.run("DELETE FROM issues WHERE id = ?", [resolvedId]);
+  db.run("DELETE FROM dependencies WHERE issue_id = ? OR depends_on_id = ?", [
+    resolvedId,
+    resolvedId,
+  ]);
   requestJsonlExport();
 }
 
@@ -884,6 +896,18 @@ export function getIssueIdMapping(localId: string): string | null {
   return row?.linear_id || null;
 }
 
+export function isLocalId(id: string): boolean {
+  return id.startsWith(LOCAL_ID_PREFIX);
+}
+
+/**
+ * Resolve input ID to Linear ID if mapping exists
+ */
+export function resolveIssueId(id: string): string {
+  if (!isLocalId(id)) return id;
+  return getIssueIdMapping(id) || id;
+}
+
 /**
  * Resolve Linear ID (identifier) back to local ID
  */
@@ -899,11 +923,7 @@ export function getLocalIdForLinearId(linearId: string): string | null {
  * Format issue ID to include local ID when available
  */
 export function getDisplayId(id: string): string {
-  if (id.startsWith("LOCAL-")) {
-    const linearId = getIssueIdMapping(id);
-    return linearId || id;
-  }
-  return id;
+  return resolveIssueId(id);
 }
 
 /**

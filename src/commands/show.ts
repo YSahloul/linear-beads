@@ -9,6 +9,8 @@ import {
   getDependencies,
   getInverseDependencies,
   getDisplayId,
+  resolveIssueId,
+  isLocalId,
 } from "../utils/database.js";
 import { fetchIssue } from "../utils/linear.js";
 import { formatShowJson, formatIssueHuman, output, outputError } from "../utils/output.js";
@@ -22,6 +24,7 @@ export const showCommand = new Command("show")
   .option("--team <team>", "Team key (overrides config)")
   .action(async (id: string, options) => {
     try {
+      const resolvedId = resolveIssueId(id);
       const localOnly = isLocalOnly();
 
       // Ensure cache is fresh (skip in local-only mode)
@@ -32,18 +35,18 @@ export const showCommand = new Command("show")
       let issue;
 
       // With --sync, always fetch fresh from Linear to get relations (skip in local-only mode)
-      if (options.sync && !localOnly) {
-        issue = await fetchIssue(id);
+      if (options.sync && !localOnly && !isLocalId(resolvedId)) {
+        issue = await fetchIssue(resolvedId);
       }
 
       // Try cache if not synced or fetch failed
       if (!issue) {
-        issue = getCachedIssue(id);
+        issue = getCachedIssue(resolvedId);
       }
 
       // If still not found, try fetching directly (skip in local-only mode)
-      if (!issue && !localOnly) {
-        issue = await fetchIssue(id);
+      if (!issue && !localOnly && !isLocalId(resolvedId)) {
+        issue = await fetchIssue(resolvedId);
       }
 
       if (!issue) {

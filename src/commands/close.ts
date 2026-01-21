@@ -8,6 +8,8 @@ import {
   getCachedIssue,
   cacheIssue,
   getDisplayId,
+  resolveIssueId,
+  isLocalId,
 } from "../utils/database.js";
 import { closeIssue, getTeamId, fetchIssue } from "../utils/linear.js";
 import { formatIssueJson, formatIssueHuman, output, outputError } from "../utils/output.js";
@@ -23,9 +25,10 @@ export const closeCommand = new Command("close")
   .option("--team <team>", "Team key (overrides config)")
   .action(async (id: string, options) => {
     try {
+      const resolvedId = resolveIssueId(id);
       // Local-only mode: update cache directly
       if (isLocalOnly()) {
-        const issue = getCachedIssue(id);
+        const issue = getCachedIssue(resolvedId);
         if (!issue) {
           outputError(`Issue not found: ${id}`);
           process.exit(1);
@@ -49,9 +52,13 @@ export const closeCommand = new Command("close")
       }
 
       if (options.sync) {
+        if (isLocalId(resolvedId)) {
+          outputError(`Issue not synced yet: ${id}`);
+          process.exit(1);
+        }
         // Sync mode: close directly in Linear
         const teamId = await getTeamId(options.team);
-        const issue = await closeIssue(id, teamId, options.reason);
+        const issue = await closeIssue(resolvedId, teamId, options.reason);
 
         if (options.json) {
           output(formatIssueJson(issue));
@@ -61,18 +68,18 @@ export const closeCommand = new Command("close")
       } else {
         // Queue mode: add to outbox and spawn background worker
         queueOutboxItem("close", {
-          issueId: id,
+          issueId: resolvedId,
           reason: options.reason,
-        }, id);
+        }, resolvedId);
 
         // Ensure worker processes the outbox
         ensureOutboxProcessed();
 
         // Return cached issue with status updated
-        let issue = getCachedIssue(id);
+        let issue = getCachedIssue(resolvedId);
         if (!issue) {
           try {
-            issue = await fetchIssue(id);
+            issue = isLocalId(resolvedId) ? null : await fetchIssue(resolvedId);
           } catch {
             issue = null;
           }
@@ -93,7 +100,7 @@ export const closeCommand = new Command("close")
             output(formatIssueHuman(closed, getDisplayId(closed.id)));
           }
         } else {
-          output(`Closed: ${getDisplayId(id)}`);
+          output(`Closed: ${getDisplayId(resolvedId)}`);
         }
       }
     } catch (error) {

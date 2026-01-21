@@ -10,6 +10,8 @@ import {
   cacheDependency,
   getDatabase,
   getDisplayId,
+  resolveIssueId,
+  isLocalId,
 } from "../utils/database.js";
 import {
   createIssue,
@@ -128,6 +130,12 @@ export const createCommand = new Command("create")
         allDeps.push(...parseDeps(options.deps));
       }
 
+      const resolvedDeps = allDeps.map((dep) => ({
+        ...dep,
+        targetId: resolveIssueId(dep.targetId),
+      }));
+      const resolvedParent = options.parent ? resolveIssueId(options.parent) : undefined;
+
       // Local-only mode: create locally without Linear
       if (isLocalOnly()) {
         const localId = generateLocalId();
@@ -147,10 +155,10 @@ export const createCommand = new Command("create")
         cacheIssue(issue);
 
         // Handle parent relationship
-        if (options.parent) {
+        if (resolvedParent) {
           cacheDependency({
             issue_id: localId,
-            depends_on_id: options.parent,
+            depends_on_id: resolvedParent,
             type: "parent-child",
             created_at: now,
             created_by: "local",
@@ -158,7 +166,7 @@ export const createCommand = new Command("create")
         }
 
         // Handle deps
-        for (const dep of allDeps) {
+        for (const dep of resolvedDeps) {
           if (dep.type === "blocked-by") {
             cacheDependency({
               issue_id: dep.targetId,
@@ -188,6 +196,16 @@ export const createCommand = new Command("create")
       }
 
       if (options.sync) {
+        if (resolvedParent && isLocalId(resolvedParent)) {
+          console.error(`Parent not synced yet: ${options.parent}`);
+          process.exit(1);
+        }
+        for (const dep of resolvedDeps) {
+          if (isLocalId(dep.targetId)) {
+            console.error(`Target not synced yet: ${dep.targetId}`);
+            process.exit(1);
+          }
+        }
         // Sync mode: create directly in Linear
         const teamId = await getTeamId(options.team);
 
@@ -221,13 +239,13 @@ export const createCommand = new Command("create")
           priority,
           issueType, // undefined if types disabled
           teamId,
-          parentId: options.parent,
+          parentId: resolvedParent,
           assigneeId,
         });
 
         // Handle deps after issue creation
-        if (allDeps.length > 0) {
-          for (const dep of allDeps) {
+        if (resolvedDeps.length > 0) {
+          for (const dep of resolvedDeps) {
             try {
               if (dep.type === "blocked-by") {
                 // blocked-by is inverse: target blocks this issue
@@ -272,13 +290,13 @@ export const createCommand = new Command("create")
         };
 
         // Convert allDeps to string format for queue
-        const depsString = allDeps.map((d) => `${d.type}:${d.targetId}`).join(",");
+        const depsString = resolvedDeps.map((d) => `${d.type}:${d.targetId}`).join(",");
 
         const payload: Record<string, unknown> = {
           title,
           description: options.description,
           priority,
-          parentId: options.parent,
+          parentId: resolvedParent,
           assign: options.assign,
           unassign: options.unassign || false,
           deps: depsString || undefined,
@@ -291,17 +309,17 @@ export const createCommand = new Command("create")
         const transaction = db.transaction(() => {
           cacheIssue(issue);
 
-          if (options.parent) {
+          if (resolvedParent) {
             cacheDependency({
               issue_id: localId,
-              depends_on_id: options.parent,
+              depends_on_id: resolvedParent,
               type: "parent-child",
               created_at: now,
               created_by: "local",
             });
           }
 
-          for (const dep of allDeps) {
+          for (const dep of resolvedDeps) {
             if (dep.type === "blocked-by") {
               cacheDependency({
                 issue_id: dep.targetId,

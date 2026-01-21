@@ -11,6 +11,8 @@ import {
   cacheDependency,
   deleteDependency,
   getDisplayId,
+  resolveIssueId,
+  isLocalId,
 } from "../utils/database.js";
 import { output, outputError } from "../utils/output.js";
 import { queueOperation } from "../utils/spawn-worker.js";
@@ -22,13 +24,14 @@ import type { Dependency } from "../types.js";
  */
 function getAllDependencies(issueId: string): { outgoing: Dependency[]; incoming: Dependency[] } {
   const db = getDatabase();
+  const resolvedId = resolveIssueId(issueId);
 
   const outgoing = db
     .query("SELECT * FROM dependencies WHERE issue_id = ?")
-    .all(issueId) as Dependency[];
+    .all(resolvedId) as Dependency[];
   const incoming = db
     .query("SELECT * FROM dependencies WHERE depends_on_id = ?")
-    .all(issueId) as Dependency[];
+    .all(resolvedId) as Dependency[];
 
   return { outgoing, incoming };
 }
@@ -95,6 +98,7 @@ const addCommand = new Command("add")
   .option("--sync", "Sync immediately (block on network)")
   .action(async (issueId: string, options) => {
     try {
+      const resolvedIssueId = resolveIssueId(issueId);
       const hasOption = options.blocks || options.blockedBy || options.related;
       if (!hasOption) {
         outputError("Must specify --blocks, --blocked-by, or --related");
@@ -105,9 +109,10 @@ const addCommand = new Command("add")
       const now = new Date().toISOString();
 
       if (options.blocks) {
+        const targetId = resolveIssueId(options.blocks);
         const dep: Dependency = {
-          issue_id: issueId,
-          depends_on_id: options.blocks,
+          issue_id: resolvedIssueId,
+          depends_on_id: targetId,
           type: "blocks",
           created_at: now,
           created_by: "local",
@@ -115,23 +120,28 @@ const addCommand = new Command("add")
         if (localOnly) {
           cacheDependency(dep);
         } else if (options.sync) {
-          await createRelation(issueId, options.blocks, "blocks");
+          if (isLocalId(resolvedIssueId) || isLocalId(targetId)) {
+            outputError("Dependency target not synced yet.");
+            process.exit(1);
+          }
+          await createRelation(resolvedIssueId, targetId, "blocks");
         } else {
           cacheDependency(dep);
           queueOperation("create_relation", {
-            issueId,
-            relatedIssueId: options.blocks,
+            issueId: resolvedIssueId,
+            relatedIssueId: targetId,
             type: "blocks",
-          }, issueId);
+          }, resolvedIssueId);
         }
-        output(`Added: ${getDisplayId(issueId)} blocks ${getDisplayId(options.blocks)}`);
+        output(`Added: ${getDisplayId(resolvedIssueId)} blocks ${getDisplayId(targetId)}`);
       }
 
       if (options.blockedBy) {
         // blocked-by is inverse: target blocks this issue
+        const targetId = resolveIssueId(options.blockedBy);
         const dep: Dependency = {
-          issue_id: options.blockedBy,
-          depends_on_id: issueId,
+          issue_id: targetId,
+          depends_on_id: resolvedIssueId,
           type: "blocks",
           created_at: now,
           created_by: "local",
@@ -139,22 +149,27 @@ const addCommand = new Command("add")
         if (localOnly) {
           cacheDependency(dep);
         } else if (options.sync) {
-          await createRelation(options.blockedBy, issueId, "blocks");
+          if (isLocalId(resolvedIssueId) || isLocalId(targetId)) {
+            outputError("Dependency target not synced yet.");
+            process.exit(1);
+          }
+          await createRelation(targetId, resolvedIssueId, "blocks");
         } else {
           cacheDependency(dep);
           queueOperation("create_relation", {
-            issueId: options.blockedBy,
-            relatedIssueId: issueId,
+            issueId: targetId,
+            relatedIssueId: resolvedIssueId,
             type: "blocks",
-          }, options.blockedBy);
+          }, targetId);
         }
-        output(`Added: ${getDisplayId(issueId)} is blocked by ${getDisplayId(options.blockedBy)}`);
+        output(`Added: ${getDisplayId(resolvedIssueId)} is blocked by ${getDisplayId(targetId)}`);
       }
 
       if (options.related) {
+        const targetId = resolveIssueId(options.related);
         const dep: Dependency = {
-          issue_id: issueId,
-          depends_on_id: options.related,
+          issue_id: resolvedIssueId,
+          depends_on_id: targetId,
           type: "related",
           created_at: now,
           created_by: "local",
@@ -162,16 +177,20 @@ const addCommand = new Command("add")
         if (localOnly) {
           cacheDependency(dep);
         } else if (options.sync) {
-          await createRelation(issueId, options.related, "related");
+          if (isLocalId(resolvedIssueId) || isLocalId(targetId)) {
+            outputError("Dependency target not synced yet.");
+            process.exit(1);
+          }
+          await createRelation(resolvedIssueId, targetId, "related");
         } else {
           cacheDependency(dep);
           queueOperation("create_relation", {
-            issueId,
-            relatedIssueId: options.related,
+            issueId: resolvedIssueId,
+            relatedIssueId: targetId,
             type: "related",
-          }, issueId);
+          }, resolvedIssueId);
         }
-        output(`Added: ${getDisplayId(issueId)} related to ${getDisplayId(options.related)}`);
+        output(`Added: ${getDisplayId(resolvedIssueId)} related to ${getDisplayId(targetId)}`);
       }
     } catch (error) {
       outputError(error instanceof Error ? error.message : String(error));
@@ -187,20 +206,26 @@ const removeCommand = new Command("remove")
   .option("--sync", "Sync immediately (block on network)")
   .action(async (issueA: string, issueB: string, options) => {
     try {
+      const resolvedA = resolveIssueId(issueA);
+      const resolvedB = resolveIssueId(issueB);
       const localOnly = isLocalOnly();
 
       if (localOnly) {
-        deleteDependency(issueA, issueB);
+        deleteDependency(resolvedA, resolvedB);
       } else if (options.sync) {
-        await deleteRelation(issueA, issueB);
+        if (isLocalId(resolvedA) || isLocalId(resolvedB)) {
+          outputError("Dependency target not synced yet.");
+          process.exit(1);
+        }
+        await deleteRelation(resolvedA, resolvedB);
       } else {
-        deleteDependency(issueA, issueB);
+        deleteDependency(resolvedA, resolvedB);
         queueOperation("delete_relation", {
-          issueA,
-          issueB,
-        }, issueA);
+          issueA: resolvedA,
+          issueB: resolvedB,
+        }, resolvedA);
       }
-      output(`Removed dependency between ${getDisplayId(issueA)} and ${getDisplayId(issueB)}`);
+      output(`Removed dependency between ${getDisplayId(resolvedA)} and ${getDisplayId(resolvedB)}`);
     } catch (error) {
       outputError(error instanceof Error ? error.message : String(error));
       process.exit(1);

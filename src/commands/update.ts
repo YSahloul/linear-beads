@@ -9,6 +9,8 @@ import {
   cacheIssue,
   cacheDependency,
   getDisplayId,
+  resolveIssueId,
+  isLocalId,
 } from "../utils/database.js";
 import {
   updateIssue,
@@ -83,6 +85,7 @@ export const updateCommand = new Command("update")
   .option("--team <team>", "Team key (overrides config)")
   .action(async (id: string, options) => {
     try {
+      const resolvedId = resolveIssueId(id);
       // Validate inputs
       const updates: {
         title?: string;
@@ -149,6 +152,11 @@ export const updateCommand = new Command("update")
         allDeps.push(...parseDeps(options.deps));
       }
 
+      const resolvedDeps = allDeps.map((dep) => ({
+        ...dep,
+        targetId: resolveIssueId(dep.targetId),
+      }));
+
       if (Object.keys(updates).length === 0 && allDeps.length === 0 && !options.parent) {
         outputError("No updates specified");
         process.exit(1);
@@ -156,7 +164,7 @@ export const updateCommand = new Command("update")
 
       // Local-only mode: update cache directly
       if (isLocalOnly()) {
-        const issue = getCachedIssue(id);
+        const issue = getCachedIssue(resolvedId);
         if (!issue) {
           outputError(`Issue not found: ${id}`);
           process.exit(1);
@@ -169,8 +177,8 @@ export const updateCommand = new Command("update")
         // Handle parent
         if (options.parent) {
           cacheDependency({
-            issue_id: id,
-            depends_on_id: options.parent,
+            issue_id: resolvedId,
+            depends_on_id: resolveIssueId(options.parent),
             type: "parent-child",
             created_at: now,
             created_by: "local",
@@ -181,8 +189,8 @@ export const updateCommand = new Command("update")
         for (const dep of allDeps) {
           if (dep.type === "blocked-by") {
             cacheDependency({
-              issue_id: dep.targetId,
-              depends_on_id: id,
+              issue_id: resolveIssueId(dep.targetId),
+              depends_on_id: resolvedId,
               type: "blocks",
               created_at: now,
               created_by: "local",
@@ -190,8 +198,8 @@ export const updateCommand = new Command("update")
           } else {
             const depType = dep.type === "blocks" ? "blocks" : "related";
             cacheDependency({
-              issue_id: id,
-              depends_on_id: dep.targetId,
+              issue_id: resolvedId,
+              depends_on_id: resolveIssueId(dep.targetId),
               type: depType as "blocks" | "related",
               created_at: now,
               created_by: "local",
@@ -208,20 +216,29 @@ export const updateCommand = new Command("update")
       }
 
       if (options.sync) {
+        if (isLocalId(resolvedId)) {
+          outputError(`Issue not synced yet: ${id}`);
+          process.exit(1);
+        }
         // Sync mode: update directly in Linear
         const teamId = await getTeamId(options.team);
         let issue = null;
 
         if (Object.keys(updates).length > 0) {
-          issue = await updateIssue(id, updates, teamId);
+          issue = await updateIssue(resolvedId, updates, teamId);
         } else {
-          issue = await fetchIssue(id);
+          issue = await fetchIssue(resolvedId);
         }
 
         // Handle parent
         if (options.parent) {
           try {
-            await updateIssueParent(id, options.parent);
+            const parentId = resolveIssueId(options.parent);
+            if (isLocalId(parentId)) {
+              outputError(`Parent not synced yet: ${options.parent}`);
+            } else {
+              await updateIssueParent(resolvedId, parentId);
+            }
           } catch (error) {
             outputError(
               `Failed to set parent to ${options.parent}: ${error instanceof Error ? error.message : error}`
@@ -235,10 +252,20 @@ export const updateCommand = new Command("update")
             try {
               if (dep.type === "blocked-by") {
                 // blocked-by is inverse: target blocks this issue
-                await createRelation(dep.targetId, id, "blocks");
+                const targetId = resolveIssueId(dep.targetId);
+                if (isLocalId(targetId)) {
+                  outputError(`Target not synced yet: ${dep.targetId}`);
+                  continue;
+                }
+                await createRelation(targetId, resolvedId, "blocks");
               } else {
+                const targetId = resolveIssueId(dep.targetId);
+                if (isLocalId(targetId)) {
+                  outputError(`Target not synced yet: ${dep.targetId}`);
+                  continue;
+                }
                 const relationType = dep.type === "blocks" ? "blocks" : "related";
-                await createRelation(id, dep.targetId, relationType);
+                await createRelation(resolvedId, targetId, relationType);
               }
             } catch (error) {
               outputError(
@@ -258,31 +285,31 @@ export const updateCommand = new Command("update")
       } else {
         // Queue mode: add to outbox and spawn background worker
         // Convert allDeps to string format for queue
-        const depsString = allDeps.map((d) => `${d.type}:${d.targetId}`).join(",");
+        const depsString = resolvedDeps.map((d) => `${d.type}:${d.targetId}`).join(",");
 
         // For queue mode, pass flags for worker to resolve
         const payload: Record<string, unknown> = {
-          issueId: id,
+          issueId: resolvedId,
           ...updates,
         };
         // Pass assign/unassign flags for worker to resolve
         if (options.assign) payload.assign = options.assign;
         if (options.unassign) payload.unassign = true;
         if (depsString) payload.deps = depsString;
-        if (options.parent) payload.parentId = options.parent;
+        if (options.parent) payload.parentId = resolveIssueId(options.parent);
         // Remove assigneeId from payload - worker will resolve it
         delete payload.assigneeId;
 
-        queueOutboxItem("update", payload, id);
+        queueOutboxItem("update", payload, resolvedId);
 
         // Spawn background worker if not already running
         ensureOutboxProcessed();
 
         // Return cached issue with updates applied
-        let issue = getCachedIssue(id);
+        let issue = getCachedIssue(resolvedId);
         if (!issue) {
           try {
-            issue = await fetchIssue(id);
+            issue = isLocalId(resolvedId) ? null : await fetchIssue(resolvedId);
           } catch {
             issue = null;
           }
@@ -296,8 +323,8 @@ export const updateCommand = new Command("update")
 
           if (options.parent) {
             cacheDependency({
-              issue_id: id,
-              depends_on_id: options.parent,
+              issue_id: resolvedId,
+              depends_on_id: resolveIssueId(options.parent),
               type: "parent-child",
               created_at: now,
               created_by: "local",
@@ -307,8 +334,8 @@ export const updateCommand = new Command("update")
           for (const dep of allDeps) {
             if (dep.type === "blocked-by") {
               cacheDependency({
-                issue_id: dep.targetId,
-                depends_on_id: id,
+                issue_id: resolveIssueId(dep.targetId),
+                depends_on_id: resolvedId,
                 type: "blocks",
                 created_at: now,
                 created_by: "local",
@@ -316,8 +343,8 @@ export const updateCommand = new Command("update")
             } else {
               const depType = dep.type === "blocks" ? "blocks" : "related";
               cacheDependency({
-                issue_id: id,
-                depends_on_id: dep.targetId,
+                issue_id: resolvedId,
+                depends_on_id: resolveIssueId(dep.targetId),
                 type: depType as "blocks" | "related",
                 created_at: now,
                 created_by: "local",
@@ -331,7 +358,7 @@ export const updateCommand = new Command("update")
             output(formatIssueHuman(updated, getDisplayId(updated.id)));
           }
         } else {
-          output(`Updated: ${getDisplayId(id)}`);
+          output(`Updated: ${getDisplayId(resolvedId)}`);
         }
       }
     } catch (error) {

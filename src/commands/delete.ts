@@ -9,8 +9,10 @@ import {
   getCachedIssue,
   queueOutboxItem,
   getDisplayId,
+  resolveIssueId,
+  isLocalId,
 } from "../utils/database.js";
-import { output } from "../utils/output.js";
+import { output, outputError } from "../utils/output.js";
 import { ensureOutboxProcessed } from "../utils/spawn-worker.js";
 import { isLocalOnly } from "../utils/config.js";
 
@@ -22,8 +24,9 @@ export const deleteCommand = new Command("delete")
   .option("--sync", "Delete immediately (block on network)")
   .action(async (id: string, options) => {
     try {
+      const resolvedId = resolveIssueId(id);
       // Get issue info first for display
-      const issue = getCachedIssue(id);
+      const issue = getCachedIssue(resolvedId);
       const title = issue?.title || id;
 
       if (!options.force) {
@@ -36,39 +39,43 @@ export const deleteCommand = new Command("delete")
 
       // Local-only mode: just delete from cache
       if (isLocalOnly()) {
-        deleteCachedIssue(id);
+        deleteCachedIssue(resolvedId);
         if (options.json) {
-          output(JSON.stringify({ deleted: id, title }));
+          output(JSON.stringify({ deleted: resolvedId, title }));
         } else {
-          output(`Deleted: ${getDisplayId(id)}: ${title}`);
+          output(`Deleted: ${getDisplayId(resolvedId)}: ${title}`);
         }
         return;
       }
 
       if (options.sync) {
         // Sync mode: delete directly from Linear
-        await deleteIssue(id);
-        deleteCachedIssue(id);
+        if (isLocalId(resolvedId)) {
+          outputError(`Issue not synced yet: ${id}`);
+          process.exit(1);
+        }
+        await deleteIssue(resolvedId);
+        deleteCachedIssue(resolvedId);
 
         if (options.json) {
-          output(JSON.stringify({ deleted: id, title }));
+          output(JSON.stringify({ deleted: resolvedId, title }));
         } else {
-          output(`Deleted: ${getDisplayId(id)}: ${title}`);
+          output(`Deleted: ${getDisplayId(resolvedId)}: ${title}`);
         }
       } else {
         // Queue mode: add to outbox and spawn background worker
-        queueOutboxItem("delete", { issueId: id }, id);
+        queueOutboxItem("delete", { issueId: resolvedId }, resolvedId);
 
         // Optimistically remove from cache so it disappears immediately
-        deleteCachedIssue(id);
+        deleteCachedIssue(resolvedId);
 
         // Spawn background worker
         ensureOutboxProcessed();
 
         if (options.json) {
-          output(JSON.stringify({ deleted: id, title, queued: true }));
+          output(JSON.stringify({ deleted: resolvedId, title, queued: true }));
         } else {
-          output(`Deleted: ${getDisplayId(id)}: ${title}`);
+          output(`Deleted: ${getDisplayId(resolvedId)}: ${title}`);
         }
       }
     } catch (error) {
