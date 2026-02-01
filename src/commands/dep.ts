@@ -355,6 +355,127 @@ const removeCommand = new Command("remove")
     }
   });
 
+// lb dep list
+const listCommand = new Command("list")
+  .description("List all dependencies for an issue")
+  .argument("<issue>", "Issue ID")
+  .option("-j, --json", "Output as JSON")
+  .action(async (issueId: string, options) => {
+    try {
+      const issue = getCachedIssue(issueId);
+      if (!issue) {
+        outputError(`Issue not found: ${issueId}`);
+        process.exit(1);
+      }
+
+      const resolvedId = resolveIssueId(issueId);
+      const { outgoing, incoming } = getAllDependencies(resolvedId);
+
+      // Group dependencies by type
+      const parent = outgoing.find((d) => d.type === "parent-child");
+      const children = incoming.filter((d) => d.type === "parent-child");
+      const blocks = outgoing.filter((d) => d.type === "blocks");
+      const blockedBy = incoming.filter((d) => d.type === "blocks");
+      const related = outgoing.filter((d) => d.type === "related");
+      const relatedIncoming = incoming.filter((d) => d.type === "related");
+
+      if (options.json) {
+        const formatDep = (d: Dependency) => {
+          const depIssue = getCachedIssue(d.issue_id === resolvedId ? d.depends_on_id : d.issue_id);
+          return {
+            id: getDisplayId(d.issue_id === resolvedId ? d.depends_on_id : d.issue_id),
+            title: depIssue?.title || "Unknown",
+            status: depIssue?.status || "unknown",
+            priority: depIssue?.priority ?? null,
+          };
+        };
+
+        output(JSON.stringify({
+          issue: {
+            id: getDisplayId(resolvedId),
+            title: issue.title,
+            status: issue.status,
+            priority: issue.priority,
+          },
+          parent: parent ? formatDep(parent) : null,
+          children: children.map(formatDep),
+          blocks: blocks.map(formatDep),
+          blockedBy: blockedBy.map(formatDep),
+          related: [...related, ...relatedIncoming].map(formatDep),
+        }, null, 2));
+        return;
+      }
+
+      // Human-readable output
+      output(`\n📋 Dependencies for ${getDisplayId(resolvedId)}: ${issue.title}\n`);
+
+      if (parent) {
+        const parentIssue = getCachedIssue(parent.depends_on_id);
+        output(`Parent: ${getDisplayId(parent.depends_on_id)} - ${parentIssue?.title || "Unknown"} (${parentIssue?.status || "unknown"})`);
+      } else {
+        output("Parent: (none)");
+      }
+
+      output("");
+
+      if (children.length > 0) {
+        output(`Children (${children.length}):`);
+        children.forEach((child) => {
+          const childIssue = getCachedIssue(child.issue_id);
+          output(`  ${getDisplayId(child.issue_id)} - ${childIssue?.title || "Unknown"} (${childIssue?.status || "unknown"})`);
+        });
+      } else {
+        output("Children: (none)");
+      }
+
+      output("");
+
+      if (blockedBy.length > 0) {
+        output(`Blocked By (${blockedBy.length}):`);
+        blockedBy.forEach((dep) => {
+          const blockerIssue = getCachedIssue(dep.issue_id);
+          const status = blockerIssue?.status || "unknown";
+          const isOpen = status !== "closed";
+          const icon = isOpen ? "🔴" : "✅";
+          output(`  ${icon} ${getDisplayId(dep.issue_id)} - ${blockerIssue?.title || "Unknown"} (${status})`);
+        });
+      } else {
+        output("Blocked By: (none)");
+      }
+
+      output("");
+
+      if (blocks.length > 0) {
+        output(`Blocks (${blocks.length}):`);
+        blocks.forEach((dep) => {
+          const blockedIssue = getCachedIssue(dep.depends_on_id);
+          output(`  ${getDisplayId(dep.depends_on_id)} - ${blockedIssue?.title || "Unknown"} (${blockedIssue?.status || "unknown"})`);
+        });
+      } else {
+        output("Blocks: (none)");
+      }
+
+      output("");
+
+      const allRelated = [...related, ...relatedIncoming];
+      if (allRelated.length > 0) {
+        output(`Related (${allRelated.length}):`);
+        allRelated.forEach((dep) => {
+          const relatedId = dep.issue_id === resolvedId ? dep.depends_on_id : dep.issue_id;
+          const relatedIssue = getCachedIssue(relatedId);
+          output(`  ${getDisplayId(relatedId)} - ${relatedIssue?.title || "Unknown"} (${relatedIssue?.status || "unknown"})`);
+        });
+      } else {
+        output("Related: (none)");
+      }
+
+      output("");
+    } catch (error) {
+      outputError(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  });
+
 // lb dep tree
 const treeCommand = new Command("tree")
   .description("Show dependency tree for an issue")
@@ -378,4 +499,5 @@ const treeCommand = new Command("tree")
 
 depCommand.addCommand(addCommand);
 depCommand.addCommand(removeCommand);
+depCommand.addCommand(listCommand);
 depCommand.addCommand(treeCommand);
