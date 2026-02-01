@@ -3,7 +3,7 @@
  */
 
 import { Command } from "commander";
-import { createRelation, deleteRelation } from "../utils/linear.js";
+import { createRelation, deleteRelation, updateIssueParent } from "../utils/linear.js";
 import {
   getDependencies,
   getCachedIssue,
@@ -95,13 +95,14 @@ const addCommand = new Command("add")
   .option("--blocks <id>", "This issue blocks the specified issue")
   .option("--blocked-by <id>", "This issue is blocked by the specified issue")
   .option("--related <id>", "This issue is related to the specified issue")
+  .option("--parent <id>", "Set parent issue (makes this a subtask)")
   .option("--sync", "Sync immediately (block on network)")
   .action(async (issueId: string, options) => {
     try {
       const resolvedIssueId = resolveIssueId(issueId);
-      const hasOption = options.blocks || options.blockedBy || options.related;
+      const hasOption = options.blocks || options.blockedBy || options.related || options.parent;
       if (!hasOption) {
-        outputError("Must specify --blocks, --blocked-by, or --related");
+        outputError("Must specify --blocks, --blocked-by, --related, or --parent");
         process.exit(1);
       }
 
@@ -191,6 +192,33 @@ const addCommand = new Command("add")
           }, resolvedIssueId);
         }
         output(`Added: ${getDisplayId(resolvedIssueId)} related to ${getDisplayId(targetId)}`);
+      }
+
+      if (options.parent) {
+        const parentId = resolveIssueId(options.parent);
+        const dep: Dependency = {
+          issue_id: resolvedIssueId,
+          depends_on_id: parentId,
+          type: "parent-child",
+          created_at: now,
+          created_by: "local",
+        };
+        if (localOnly) {
+          cacheDependency(dep);
+        } else if (options.sync) {
+          if (isLocalId(resolvedIssueId) || isLocalId(parentId)) {
+            outputError("Parent issue not synced yet.");
+            process.exit(1);
+          }
+          await updateIssueParent(resolvedIssueId, parentId);
+        } else {
+          cacheDependency(dep);
+          queueOperation("update", {
+            issueId: resolvedIssueId,
+            parentId: parentId,
+          }, resolvedIssueId);
+        }
+        output(`Added: ${getDisplayId(resolvedIssueId)} parent is ${getDisplayId(parentId)}`);
       }
     } catch (error) {
       outputError(error instanceof Error ? error.message : String(error));
