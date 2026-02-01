@@ -229,31 +229,126 @@ const addCommand = new Command("add")
 // lb dep remove
 const removeCommand = new Command("remove")
   .description("Remove a dependency between issues")
-  .argument("<issue-a>", "First issue ID")
-  .argument("<issue-b>", "Second issue ID")
+  .argument("<issue>", "Issue ID")
+  .argument("[target]", "Target issue ID (for blocks/related removal)")
+  .option("--blocks", "Remove blocks relationship")
+  .option("--blocked-by", "Remove blocked-by relationship")
+  .option("--related", "Remove related relationship")
+  .option("--parent", "Remove parent relationship")
   .option("--sync", "Sync immediately (block on network)")
-  .action(async (issueA: string, issueB: string, options) => {
+  .action(async (issue: string, target: string | undefined, options) => {
     try {
-      const resolvedA = resolveIssueId(issueA);
-      const resolvedB = resolveIssueId(issueB);
+      const resolvedIssue = resolveIssueId(issue);
       const localOnly = isLocalOnly();
 
-      if (localOnly) {
-        deleteDependency(resolvedA, resolvedB);
-      } else if (options.sync) {
-        if (isLocalId(resolvedA) || isLocalId(resolvedB)) {
-          outputError("Dependency target not synced yet.");
+      // Legacy mode: two positional arguments (backward compatibility)
+      if (target && !options.blocks && !options.blockedBy && !options.related && !options.parent) {
+        const resolvedTarget = resolveIssueId(target);
+
+        if (localOnly) {
+          deleteDependency(resolvedIssue, resolvedTarget);
+        } else if (options.sync) {
+          if (isLocalId(resolvedIssue) || isLocalId(resolvedTarget)) {
+            outputError("Dependency target not synced yet.");
+            process.exit(1);
+          }
+          await deleteRelation(resolvedIssue, resolvedTarget);
+        } else {
+          deleteDependency(resolvedIssue, resolvedTarget);
+          queueOperation("delete_relation", {
+            issueA: resolvedIssue,
+            issueB: resolvedTarget,
+          }, resolvedIssue);
+        }
+        output(`Removed dependency between ${getDisplayId(resolvedIssue)} and ${getDisplayId(resolvedTarget)}`);
+        return;
+      }
+
+      // New flag-based mode
+      const hasFlag = options.blocks || options.blockedBy || options.related || options.parent;
+      if (!hasFlag) {
+        outputError("Must specify a relationship type to remove (--blocks, --blocked-by, --related, or --parent), or provide two issue IDs");
+        process.exit(1);
+      }
+
+      if (options.parent) {
+        // Remove parent relationship - find the parent first
+        const { outgoing } = getAllDependencies(resolvedIssue);
+        const parentDep = outgoing.find((d) => d.type === "parent-child");
+
+        if (!parentDep) {
+          outputError(`No parent relationship found for ${getDisplayId(resolvedIssue)}`);
           process.exit(1);
         }
-        await deleteRelation(resolvedA, resolvedB);
+
+        const parentId = parentDep.depends_on_id;
+
+        if (localOnly) {
+          deleteDependency(resolvedIssue, parentId);
+        } else if (options.sync) {
+          if (isLocalId(resolvedIssue)) {
+            outputError("Issue not synced yet.");
+            process.exit(1);
+          }
+          // Remove parent by setting parentId to null
+          await updateIssueParent(resolvedIssue, null);
+          deleteDependency(resolvedIssue, parentId);
+        } else {
+          deleteDependency(resolvedIssue, parentId);
+          queueOperation("update", {
+            issueId: resolvedIssue,
+            parentId: null,
+          }, resolvedIssue);
+        }
+        output(`Removed: ${getDisplayId(resolvedIssue)} is no longer a subtask of ${getDisplayId(parentId)}`);
+      } else if (target) {
+        // For blocks/blocked-by/related, we need a target
+        const resolvedTarget = resolveIssueId(target);
+
+        if (options.blocks || options.blockedBy) {
+          // For blocks/blocked-by, determine the direction
+          const issueA = options.blockedBy ? resolvedTarget : resolvedIssue;
+          const issueB = options.blockedBy ? resolvedIssue : resolvedTarget;
+
+          if (localOnly) {
+            deleteDependency(issueA, issueB);
+          } else if (options.sync) {
+            if (isLocalId(issueA) || isLocalId(issueB)) {
+              outputError("Dependency target not synced yet.");
+              process.exit(1);
+            }
+            await deleteRelation(issueA, issueB);
+          } else {
+            deleteDependency(issueA, issueB);
+            queueOperation("delete_relation", {
+              issueA: issueA,
+              issueB: issueB,
+            }, issueA);
+          }
+          const relationText = options.blockedBy ? "is no longer blocked by" : "no longer blocks";
+          output(`Removed: ${getDisplayId(resolvedIssue)} ${relationText} ${getDisplayId(resolvedTarget)}`);
+        } else if (options.related) {
+          if (localOnly) {
+            deleteDependency(resolvedIssue, resolvedTarget);
+          } else if (options.sync) {
+            if (isLocalId(resolvedIssue) || isLocalId(resolvedTarget)) {
+              outputError("Dependency target not synced yet.");
+              process.exit(1);
+            }
+            await deleteRelation(resolvedIssue, resolvedTarget);
+          } else {
+            deleteDependency(resolvedIssue, resolvedTarget);
+            queueOperation("delete_relation", {
+              issueA: resolvedIssue,
+              issueB: resolvedTarget,
+            }, resolvedIssue);
+          }
+          output(`Removed: ${getDisplayId(resolvedIssue)} is no longer related to ${getDisplayId(resolvedTarget)}`);
+        }
       } else {
-        deleteDependency(resolvedA, resolvedB);
-        queueOperation("delete_relation", {
-          issueA: resolvedA,
-          issueB: resolvedB,
-        }, resolvedA);
+        outputError("Target issue required for --blocks, --blocked-by, or --related");
+        process.exit(1);
       }
-      output(`Removed dependency between ${getDisplayId(resolvedA)} and ${getDisplayId(resolvedB)}`);
     } catch (error) {
       outputError(error instanceof Error ? error.message : String(error));
       process.exit(1);
