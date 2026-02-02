@@ -2,6 +2,7 @@
  * Sync operations - push outbox and pull from Linear
  */
 
+import { Issue } from "../types.js";
 import {
   isCacheStale,
   getIncrementalSyncTimestamp,

@@ -128,11 +128,15 @@ const addCommand = new Command("add")
           await createRelation(resolvedIssueId, targetId, "blocks");
         } else {
           cacheDependency(dep);
-          queueOperation("create_relation", {
-            issueId: resolvedIssueId,
-            relatedIssueId: targetId,
-            type: "blocks",
-          }, resolvedIssueId);
+          queueOperation(
+            "create_relation",
+            {
+              issueId: resolvedIssueId,
+              relatedIssueId: targetId,
+              type: "blocks",
+            },
+            resolvedIssueId
+          );
         }
         output(`Added: ${getDisplayId(resolvedIssueId)} blocks ${getDisplayId(targetId)}`);
       }
@@ -157,11 +161,15 @@ const addCommand = new Command("add")
           await createRelation(targetId, resolvedIssueId, "blocks");
         } else {
           cacheDependency(dep);
-          queueOperation("create_relation", {
-            issueId: targetId,
-            relatedIssueId: resolvedIssueId,
-            type: "blocks",
-          }, targetId);
+          queueOperation(
+            "create_relation",
+            {
+              issueId: targetId,
+              relatedIssueId: resolvedIssueId,
+              type: "blocks",
+            },
+            targetId
+          );
         }
         output(`Added: ${getDisplayId(resolvedIssueId)} is blocked by ${getDisplayId(targetId)}`);
       }
@@ -185,11 +193,15 @@ const addCommand = new Command("add")
           await createRelation(resolvedIssueId, targetId, "related");
         } else {
           cacheDependency(dep);
-          queueOperation("create_relation", {
-            issueId: resolvedIssueId,
-            relatedIssueId: targetId,
-            type: "related",
-          }, resolvedIssueId);
+          queueOperation(
+            "create_relation",
+            {
+              issueId: resolvedIssueId,
+              relatedIssueId: targetId,
+              type: "related",
+            },
+            resolvedIssueId
+          );
         }
         output(`Added: ${getDisplayId(resolvedIssueId)} related to ${getDisplayId(targetId)}`);
       }
@@ -213,10 +225,14 @@ const addCommand = new Command("add")
           await updateIssueParent(resolvedIssueId, parentId);
         } else {
           cacheDependency(dep);
-          queueOperation("update", {
-            issueId: resolvedIssueId,
-            parentId: parentId,
-          }, resolvedIssueId);
+          queueOperation(
+            "update",
+            {
+              issueId: resolvedIssueId,
+              parentId: parentId,
+            },
+            resolvedIssueId
+          );
         }
         output(`Added: ${getDisplayId(resolvedIssueId)} parent is ${getDisplayId(parentId)}`);
       }
@@ -255,19 +271,27 @@ const removeCommand = new Command("remove")
           await deleteRelation(resolvedIssue, resolvedTarget);
         } else {
           deleteDependency(resolvedIssue, resolvedTarget);
-          queueOperation("delete_relation", {
-            issueA: resolvedIssue,
-            issueB: resolvedTarget,
-          }, resolvedIssue);
+          queueOperation(
+            "delete_relation",
+            {
+              issueA: resolvedIssue,
+              issueB: resolvedTarget,
+            },
+            resolvedIssue
+          );
         }
-        output(`Removed dependency between ${getDisplayId(resolvedIssue)} and ${getDisplayId(resolvedTarget)}`);
+        output(
+          `Removed dependency between ${getDisplayId(resolvedIssue)} and ${getDisplayId(resolvedTarget)}`
+        );
         return;
       }
 
       // New flag-based mode
       const hasFlag = options.blocks || options.blockedBy || options.related || options.parent;
       if (!hasFlag) {
-        outputError("Must specify a relationship type to remove (--blocks, --blocked-by, --related, or --parent), or provide two issue IDs");
+        outputError(
+          "Must specify a relationship type to remove (--blocks, --blocked-by, --related, or --parent), or provide two issue IDs"
+        );
         process.exit(1);
       }
 
@@ -295,12 +319,18 @@ const removeCommand = new Command("remove")
           deleteDependency(resolvedIssue, parentId);
         } else {
           deleteDependency(resolvedIssue, parentId);
-          queueOperation("update", {
-            issueId: resolvedIssue,
-            parentId: null,
-          }, resolvedIssue);
+          queueOperation(
+            "update",
+            {
+              issueId: resolvedIssue,
+              parentId: null,
+            },
+            resolvedIssue
+          );
         }
-        output(`Removed: ${getDisplayId(resolvedIssue)} is no longer a subtask of ${getDisplayId(parentId)}`);
+        output(
+          `Removed: ${getDisplayId(resolvedIssue)} is no longer a subtask of ${getDisplayId(parentId)}`
+        );
       } else if (target) {
         // For blocks/blocked-by/related, we need a target
         const resolvedTarget = resolveIssueId(target);
@@ -320,13 +350,19 @@ const removeCommand = new Command("remove")
             await deleteRelation(issueA, issueB);
           } else {
             deleteDependency(issueA, issueB);
-            queueOperation("delete_relation", {
-              issueA: issueA,
-              issueB: issueB,
-            }, issueA);
+            queueOperation(
+              "delete_relation",
+              {
+                issueA: issueA,
+                issueB: issueB,
+              },
+              issueA
+            );
           }
           const relationText = options.blockedBy ? "is no longer blocked by" : "no longer blocks";
-          output(`Removed: ${getDisplayId(resolvedIssue)} ${relationText} ${getDisplayId(resolvedTarget)}`);
+          output(
+            `Removed: ${getDisplayId(resolvedIssue)} ${relationText} ${getDisplayId(resolvedTarget)}`
+          );
         } else if (options.related) {
           if (localOnly) {
             deleteDependency(resolvedIssue, resolvedTarget);
@@ -338,12 +374,18 @@ const removeCommand = new Command("remove")
             await deleteRelation(resolvedIssue, resolvedTarget);
           } else {
             deleteDependency(resolvedIssue, resolvedTarget);
-            queueOperation("delete_relation", {
-              issueA: resolvedIssue,
-              issueB: resolvedTarget,
-            }, resolvedIssue);
+            queueOperation(
+              "delete_relation",
+              {
+                issueA: resolvedIssue,
+                issueB: resolvedTarget,
+              },
+              resolvedIssue
+            );
           }
-          output(`Removed: ${getDisplayId(resolvedIssue)} is no longer related to ${getDisplayId(resolvedTarget)}`);
+          output(
+            `Removed: ${getDisplayId(resolvedIssue)} is no longer related to ${getDisplayId(resolvedTarget)}`
+          );
         }
       } else {
         outputError("Target issue required for --blocks, --blocked-by, or --related");
@@ -390,19 +432,25 @@ const listCommand = new Command("list")
           };
         };
 
-        output(JSON.stringify({
-          issue: {
-            id: getDisplayId(resolvedId),
-            title: issue.title,
-            status: issue.status,
-            priority: issue.priority,
-          },
-          parent: parent ? formatDep(parent) : null,
-          children: children.map(formatDep),
-          blocks: blocks.map(formatDep),
-          blockedBy: blockedBy.map(formatDep),
-          related: [...related, ...relatedIncoming].map(formatDep),
-        }, null, 2));
+        output(
+          JSON.stringify(
+            {
+              issue: {
+                id: getDisplayId(resolvedId),
+                title: issue.title,
+                status: issue.status,
+                priority: issue.priority,
+              },
+              parent: parent ? formatDep(parent) : null,
+              children: children.map(formatDep),
+              blocks: blocks.map(formatDep),
+              blockedBy: blockedBy.map(formatDep),
+              related: [...related, ...relatedIncoming].map(formatDep),
+            },
+            null,
+            2
+          )
+        );
         return;
       }
 
@@ -411,7 +459,9 @@ const listCommand = new Command("list")
 
       if (parent) {
         const parentIssue = getCachedIssue(parent.depends_on_id);
-        output(`Parent: ${getDisplayId(parent.depends_on_id)} - ${parentIssue?.title || "Unknown"} (${parentIssue?.status || "unknown"})`);
+        output(
+          `Parent: ${getDisplayId(parent.depends_on_id)} - ${parentIssue?.title || "Unknown"} (${parentIssue?.status || "unknown"})`
+        );
       } else {
         output("Parent: (none)");
       }
@@ -422,7 +472,9 @@ const listCommand = new Command("list")
         output(`Children (${children.length}):`);
         children.forEach((child) => {
           const childIssue = getCachedIssue(child.issue_id);
-          output(`  ${getDisplayId(child.issue_id)} - ${childIssue?.title || "Unknown"} (${childIssue?.status || "unknown"})`);
+          output(
+            `  ${getDisplayId(child.issue_id)} - ${childIssue?.title || "Unknown"} (${childIssue?.status || "unknown"})`
+          );
         });
       } else {
         output("Children: (none)");
@@ -437,7 +489,9 @@ const listCommand = new Command("list")
           const status = blockerIssue?.status || "unknown";
           const isOpen = status !== "closed";
           const icon = isOpen ? "🔴" : "✅";
-          output(`  ${icon} ${getDisplayId(dep.issue_id)} - ${blockerIssue?.title || "Unknown"} (${status})`);
+          output(
+            `  ${icon} ${getDisplayId(dep.issue_id)} - ${blockerIssue?.title || "Unknown"} (${status})`
+          );
         });
       } else {
         output("Blocked By: (none)");
@@ -449,7 +503,9 @@ const listCommand = new Command("list")
         output(`Blocks (${blocks.length}):`);
         blocks.forEach((dep) => {
           const blockedIssue = getCachedIssue(dep.depends_on_id);
-          output(`  ${getDisplayId(dep.depends_on_id)} - ${blockedIssue?.title || "Unknown"} (${blockedIssue?.status || "unknown"})`);
+          output(
+            `  ${getDisplayId(dep.depends_on_id)} - ${blockedIssue?.title || "Unknown"} (${blockedIssue?.status || "unknown"})`
+          );
         });
       } else {
         output("Blocks: (none)");
@@ -463,7 +519,9 @@ const listCommand = new Command("list")
         allRelated.forEach((dep) => {
           const relatedId = dep.issue_id === resolvedId ? dep.depends_on_id : dep.issue_id;
           const relatedIssue = getCachedIssue(relatedId);
-          output(`  ${getDisplayId(relatedId)} - ${relatedIssue?.title || "Unknown"} (${relatedIssue?.status || "unknown"})`);
+          output(
+            `  ${getDisplayId(relatedId)} - ${relatedIssue?.title || "Unknown"} (${relatedIssue?.status || "unknown"})`
+          );
         });
       } else {
         output("Related: (none)");

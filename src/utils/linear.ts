@@ -1084,7 +1084,7 @@ export async function updateIssueParent(issueId: string, parentId: string | null
   const client = getGraphQLClient();
 
   // Resolve parentId if it's an identifier (only if not null)
-  const parentUuid = parentId ? ((await resolveIssueId(parentId)) || parentId) : null;
+  const parentUuid = parentId ? (await resolveIssueId(parentId)) || parentId : null;
 
   const mutation = `
     mutation UpdateIssueParent($id: String!, $input: IssueUpdateInput!) {

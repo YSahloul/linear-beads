@@ -913,9 +913,9 @@ export function resolveIssueId(id: string): string {
  */
 export function getLocalIdForLinearId(linearId: string): string | null {
   const db = getDatabase();
-  const row = db
-    .query("SELECT local_id FROM issue_id_map WHERE linear_id = ?")
-    .get(linearId) as { local_id: string } | null;
+  const row = db.query("SELECT local_id FROM issue_id_map WHERE linear_id = ?").get(linearId) as {
+    local_id: string;
+  } | null;
   return row?.local_id || null;
 }
 
