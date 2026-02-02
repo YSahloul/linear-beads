@@ -26,12 +26,12 @@
   "dependencies": {
     "commander": "^12.1.0",
     "graphql-request": "^7.1.2",
-    "graphql": "^16.9.0"
+    "graphql": "^16.9.0",
+    "jsonc-parser": "^3.3.1"
   },
   "devDependencies": {
     "@types/bun": "^1.1.14",
     "json-schema-to-typescript": "^15.0.4",
-    "jsonc-parser": "^3.3.1",
     "prettier": "^3.7.4",
     "typescript": "^5.7.2"
   }
