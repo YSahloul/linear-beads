@@ -266,6 +266,25 @@ export const updateCommand = new Command("update")
           }
         }
 
+        // Handle unparent
+        if (options.unparent) {
+          try {
+            await updateIssueParent(resolvedId, null);
+            // Also remove from local cache
+            const db = getDatabase();
+            const parentDep = db.query(
+              "SELECT * FROM dependencies WHERE issue_id = ? AND type = 'parent-child'"
+            ).get(resolvedId) as { depends_on_id: string } | null;
+            if (parentDep) {
+              deleteDependency(resolvedId, parentDep.depends_on_id);
+            }
+          } catch (error) {
+            outputError(
+              `Failed to remove parent: ${error instanceof Error ? error.message : error}`
+            );
+          }
+        }
+
         // Handle deps
         if (allDeps.length > 0) {
           for (const dep of allDeps) {
