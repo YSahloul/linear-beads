@@ -94,9 +94,7 @@ export const showCommand = new Command("show")
             hasRelations = true;
           }
           const parentIssue = getCachedIssue(parent);
-          output(
-            `Parent: ${getDisplayId(parent)}${parentIssue ? `: ${parentIssue.title}` : ""}`
-          );
+          output(`Parent: ${getDisplayId(parent)}${parentIssue ? `: ${parentIssue.title}` : ""}`);
         }
 
         if (children.length > 0) {
@@ -107,10 +105,10 @@ export const showCommand = new Command("show")
           output(`Children (${children.length}):`);
           for (const childId of children) {
             const child = getCachedIssue(childId);
-          output(
-            `  ↳ ${getDisplayId(childId)}${child ? `: ${child.title} [P${child.priority}]` : ""}`
-          );
-        }
+            output(
+              `  ↳ ${getDisplayId(childId)}${child ? `: ${child.title} [P${child.priority}]` : ""}`
+            );
+          }
         }
 
         if (blocks.length > 0) {
@@ -121,10 +119,10 @@ export const showCommand = new Command("show")
           output(`Blocks (${blocks.length}):`);
           for (const blockedId of blocks) {
             const blocked = getCachedIssue(blockedId);
-          output(
-            `  ← ${getDisplayId(blockedId)}${blocked ? `: ${blocked.title} [P${blocked.priority}]` : ""}`
-          );
-        }
+            output(
+              `  ← ${getDisplayId(blockedId)}${blocked ? `: ${blocked.title} [P${blocked.priority}]` : ""}`
+            );
+          }
         }
 
         if (blockedBy.length > 0) {
@@ -135,10 +133,10 @@ export const showCommand = new Command("show")
           output(`Blocked by (${blockedBy.length}):`);
           for (const blockerId of blockedBy) {
             const blocker = getCachedIssue(blockerId);
-          output(
-            `  → ${getDisplayId(blockerId)}${blocker ? `: ${blocker.title} [P${blocker.priority}]` : ""}`
-          );
-        }
+            output(
+              `  → ${getDisplayId(blockerId)}${blocker ? `: ${blocker.title} [P${blocker.priority}]` : ""}`
+            );
+          }
         }
 
         if (related.length > 0) {
@@ -149,10 +147,8 @@ export const showCommand = new Command("show")
           output(`Related (${related.length}):`);
           for (const relId of related) {
             const rel = getCachedIssue(relId);
-          output(
-            `  ↔ ${getDisplayId(relId)}${rel ? `: ${rel.title} [P${rel.priority}]` : ""}`
-          );
-        }
+            output(`  ↔ ${getDisplayId(relId)}${rel ? `: ${rel.title} [P${rel.priority}]` : ""}`);
+          }
         }
       }
     } catch (error) {

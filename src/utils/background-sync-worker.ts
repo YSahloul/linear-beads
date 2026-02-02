@@ -9,11 +9,7 @@
 
 import { writePidFile, removePidFile, getPidFileMtime } from "./pid-manager.js";
 import { getPendingOutboxItems, needsFullSync, incrementSyncRunCount } from "./database.js";
-import {
-  getTeamId,
-  fetchIssues,
-  fetchAllIssuesPaginated,
-} from "./linear.js";
+import { getTeamId, fetchIssues, fetchAllIssuesPaginated } from "./linear.js";
 import { exportToJsonl } from "./jsonl.js";
 import { processOutboxQueue } from "./outbox-processor.js";
 

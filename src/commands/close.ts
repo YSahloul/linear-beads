@@ -67,10 +67,14 @@ export const closeCommand = new Command("close")
         }
       } else {
         // Queue mode: add to outbox and spawn background worker
-        queueOutboxItem("close", {
-          issueId: resolvedId,
-          reason: options.reason,
-        }, resolvedId);
+        queueOutboxItem(
+          "close",
+          {
+            issueId: resolvedId,
+            reason: options.reason,
+          },
+          resolvedId
+        );
 
         // Ensure worker processes the outbox
         ensureOutboxProcessed();
