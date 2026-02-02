@@ -8,9 +8,11 @@ import {
   getCachedIssue,
   cacheIssue,
   cacheDependency,
+  deleteDependency,
   getDisplayId,
   resolveIssueId,
   isLocalId,
+  getDatabase,
 } from "../utils/database.js";
 import {
   updateIssue,
@@ -190,6 +192,17 @@ export const updateCommand = new Command("update")
             created_at: now,
             created_by: "local",
           });
+        }
+
+        // Handle unparent
+        if (options.unparent) {
+          const db = getDatabase();
+          const parentDep = db.query(
+            "SELECT * FROM dependencies WHERE issue_id = ? AND type = 'parent-child'"
+          ).get(resolvedId) as { depends_on_id: string } | null;
+          if (parentDep) {
+            deleteDependency(resolvedId, parentDep.depends_on_id);
+          }
         }
 
         // Handle deps
