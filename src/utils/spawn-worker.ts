@@ -78,8 +78,9 @@ export function ensureOutboxProcessed(): void {
  */
 export function queueOperation(
   operation: OutboxItem["operation"],
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  localId?: string
 ): void {
-  queueOutboxItem(operation, payload);
+  queueOutboxItem(operation, payload, localId);
   ensureOutboxProcessed();
 }

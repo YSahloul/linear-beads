@@ -37,6 +37,8 @@ export interface Issue {
   status: IssueStatus;
   priority: Priority;
   issue_type?: IssueType; // Optional - only set when use_types is enabled
+  // Sync status for local-first mode
+  sync_status?: "synced" | "pending" | "failed";
   created_at: string;
   updated_at: string;
   closed_at?: string;
@@ -117,6 +119,7 @@ export interface OutboxItem {
   id: number;
   operation: "create" | "update" | "close" | "delete" | "create_relation" | "delete_relation";
   payload: Record<string, unknown>;
+  local_id?: string;
   created_at: string;
   retry_count: number;
   last_error?: string;

@@ -8,6 +8,10 @@ import {
   generateLocalId,
   cacheIssue,
   cacheDependency,
+  getDatabase,
+  getDisplayId,
+  resolveIssueId,
+  isLocalId,
 } from "../utils/database.js";
 import {
   createIssue,
@@ -126,6 +130,12 @@ export const createCommand = new Command("create")
         allDeps.push(...parseDeps(options.deps));
       }
 
+      const resolvedDeps = allDeps.map((dep) => ({
+        ...dep,
+        targetId: resolveIssueId(dep.targetId),
+      }));
+      const resolvedParent = options.parent ? resolveIssueId(options.parent) : undefined;
+
       // Local-only mode: create locally without Linear
       if (isLocalOnly()) {
         const localId = generateLocalId();
@@ -145,10 +155,10 @@ export const createCommand = new Command("create")
         cacheIssue(issue);
 
         // Handle parent relationship
-        if (options.parent) {
+        if (resolvedParent) {
           cacheDependency({
             issue_id: localId,
-            depends_on_id: options.parent,
+            depends_on_id: resolvedParent,
             type: "parent-child",
             created_at: now,
             created_by: "local",
@@ -156,7 +166,7 @@ export const createCommand = new Command("create")
         }
 
         // Handle deps
-        for (const dep of allDeps) {
+        for (const dep of resolvedDeps) {
           if (dep.type === "blocked-by") {
             cacheDependency({
               issue_id: dep.targetId,
@@ -186,6 +196,16 @@ export const createCommand = new Command("create")
       }
 
       if (options.sync) {
+        if (resolvedParent && isLocalId(resolvedParent)) {
+          console.error(`Parent not synced yet: ${options.parent}`);
+          process.exit(1);
+        }
+        for (const dep of resolvedDeps) {
+          if (isLocalId(dep.targetId)) {
+            console.error(`Target not synced yet: ${dep.targetId}`);
+            process.exit(1);
+          }
+        }
         // Sync mode: create directly in Linear
         const teamId = await getTeamId(options.team);
 
@@ -219,13 +239,13 @@ export const createCommand = new Command("create")
           priority,
           issueType, // undefined if types disabled
           teamId,
-          parentId: options.parent,
+          parentId: resolvedParent,
           assigneeId,
         });
 
         // Handle deps after issue creation
-        if (allDeps.length > 0) {
-          for (const dep of allDeps) {
+        if (resolvedDeps.length > 0) {
+          for (const dep of resolvedDeps) {
             try {
               if (dep.type === "blocked-by") {
                 // blocked-by is inverse: target blocks this issue
@@ -247,21 +267,36 @@ export const createCommand = new Command("create")
         if (options.json) {
           output(formatIssueJson(issue));
         } else {
-          output(formatIssueHuman(issue));
+          output(formatIssueHuman(issue, getDisplayId(issue.id)));
         }
       } else {
         // Queue mode: add to outbox and spawn background worker
         // For queue mode, we pass the assign/unassign flags
         // The worker will resolve them when processing
 
+        const localId = generateLocalId();
+        const now = new Date().toISOString();
+
+        const issue: Issue = {
+          id: localId,
+          title,
+          description: options.description,
+          status: "open",
+          priority,
+          issue_type: issueType,
+          sync_status: "pending",
+          created_at: now,
+          updated_at: now,
+        };
+
         // Convert allDeps to string format for queue
-        const depsString = allDeps.map((d) => `${d.type}:${d.targetId}`).join(",");
+        const depsString = resolvedDeps.map((d) => `${d.type}:${d.targetId}`).join(",");
 
         const payload: Record<string, unknown> = {
           title,
           description: options.description,
           priority,
-          parentId: options.parent,
+          parentId: resolvedParent,
           assign: options.assign,
           unassign: options.unassign || false,
           deps: depsString || undefined,
@@ -269,27 +304,53 @@ export const createCommand = new Command("create")
         if (issueType) {
           payload.issueType = issueType;
         }
-        queueOutboxItem("create", payload);
+
+        const db = getDatabase();
+        const transaction = db.transaction(() => {
+          cacheIssue(issue);
+
+          if (resolvedParent) {
+            cacheDependency({
+              issue_id: localId,
+              depends_on_id: resolvedParent,
+              type: "parent-child",
+              created_at: now,
+              created_by: "local",
+            });
+          }
+
+          for (const dep of resolvedDeps) {
+            if (dep.type === "blocked-by") {
+              cacheDependency({
+                issue_id: dep.targetId,
+                depends_on_id: localId,
+                type: "blocks",
+                created_at: now,
+                created_by: "local",
+              });
+            } else {
+              const depType = dep.type === "blocks" ? "blocks" : "related";
+              cacheDependency({
+                issue_id: localId,
+                depends_on_id: dep.targetId,
+                type: depType as "blocks" | "related",
+                created_at: now,
+                created_by: "local",
+              });
+            }
+          }
+
+          queueOutboxItem("create", payload, localId);
+        });
+        transaction();
 
         // Spawn background worker if not already running
         ensureOutboxProcessed();
 
-        // Return a placeholder response immediately
-        const placeholder: Issue = {
-          id: "pending",
-          title,
-          description: options.description,
-          status: "open" as const,
-          priority,
-          issue_type: issueType,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-
         if (options.json) {
-          output(formatIssueJson(placeholder));
+          output(formatIssueJson(issue));
         } else {
-          output(`Created: ${title}`);
+          output(`Created: ${localId}: ${title} (syncing...)`);
         }
       }
     } catch (error) {

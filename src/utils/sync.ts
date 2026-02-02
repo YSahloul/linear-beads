@@ -3,9 +3,6 @@
  */
 
 import {
-  getPendingOutboxItems,
-  removeOutboxItem,
-  updateOutboxItemError,
   isCacheStale,
   getIncrementalSyncTimestamp,
   incrementSyncRunCount,
@@ -17,80 +14,18 @@ import {
   fetchAllIssuesPaginated,
   fetchAllUpdatedIssues,
   getTeamId,
-  createIssue,
-  updateIssue,
-  closeIssue,
-  createRelation,
 } from "./linear.js";
 import { exportToJsonl } from "./jsonl.js";
 import { isWorkerRunning } from "./pid-manager.js";
 import { ensureOutboxProcessed } from "./spawn-worker.js";
-import type { Issue, IssueType, Priority } from "../types.js";
+import { processOutboxQueue } from "./outbox-processor.js";
 
 /**
  * Process outbox queue - push pending mutations to Linear
  */
 export async function pushOutbox(teamId: string): Promise<{ success: number; failed: number }> {
-  const items = getPendingOutboxItems();
-  let success = 0;
-  let failed = 0;
-
-  for (const item of items) {
-    try {
-      switch (item.operation) {
-        case "create": {
-          const payload = item.payload as {
-            title: string;
-            description?: string;
-            priority: Priority;
-            issueType?: IssueType;
-            parentId?: string;
-          };
-          await createIssue({
-            ...payload,
-            teamId,
-          });
-          break;
-        }
-        case "update": {
-          const payload = item.payload as {
-            issueId: string;
-            title?: string;
-            description?: string;
-            status?: Issue["status"];
-            priority?: Priority;
-          };
-          await updateIssue(payload.issueId, payload, teamId);
-          break;
-        }
-        case "close": {
-          const payload = item.payload as {
-            issueId: string;
-            reason?: string;
-          };
-          await closeIssue(payload.issueId, teamId, payload.reason);
-          break;
-        }
-        case "create_relation": {
-          const payload = item.payload as {
-            issueId: string;
-            relatedIssueId: string;
-            type: "blocks" | "related";
-          };
-          await createRelation(payload.issueId, payload.relatedIssueId, payload.type);
-          break;
-        }
-      }
-      removeOutboxItem(item.id);
-      success++;
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      updateOutboxItemError(item.id, errorMsg);
-      failed++;
-    }
-  }
-
-  return { success, failed };
+  const result = await processOutboxQueue(teamId);
+  return { success: result.success, failed: result.failed };
 }
 
 /**

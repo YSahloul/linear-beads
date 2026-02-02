@@ -8,9 +8,20 @@ import { output } from "../utils/output.js";
 // Instructions that should be added to AGENTS.md
 const AGENTS_MD_CONTENT = `## CRITICAL: Task Tracking with \`lb\`
 
-**DO NOT use built-in todo/task tracking tools. Use \`lb\` instead.**
+> **STOP. READ THIS CAREFULLY.**
+>
+> **DO NOT use your built-in todo/task tracking tools for this repo.**
+> **No todo lists, no task trackers, no scratchpads - ONLY \`lb\`.**
+>
+> Need to track subtasks or steps? Create subissues:
+> \`\`\`bash
+> lb create "Step 1: ..." --parent LIN-XXX
+> lb create "Step 2: ..." --parent LIN-XXX
+> \`\`\`
+>
+> \`lb\` IS your todo list. There is no other.
 
-This repo uses \`lb\` for issue tracking. All tasks live in Linear. The \`lb\` CLI is your todo list - not your built-in task tools.
+This repo uses \`lb\` for all task management. All tasks live in Linear.
 
 ### Quick Start
 
@@ -50,14 +61,21 @@ lb dep tree LIN-A          # Visualize dependency tree
 - \`--related ID\` - Soft link, doesn't block progress
 - \`--discovered-from ID\` - Found while working on ID (creates relation)
 
-### Planning Work
+### Planning Work (SUBISSUES, NOT BUILT-IN TODOS)
 
-Break down tasks into subtasks:
+When you need to break down a task into steps, **create subissues in lb**:
 
 \`\`\`bash
 lb create "Step 1: Do X" --parent LIN-XXX -d "Details..."
 lb create "Step 2: Do Y" --parent LIN-XXX -d "Details..."
+lb create "Step 3: Do Z" --parent LIN-XXX --blocked-by LIN-YYY  # If order matters
 \`\`\`
+
+**Why subissues instead of your built-in task tools?**
+- Subissues persist across sessions - built-in todos don't
+- Other agents and humans can see them in Linear
+- Dependencies are tracked properly
+- Work doesn't get lost or duplicated
 
 ### Workflow
 
@@ -95,12 +113,39 @@ lb show LIN-XXX            # Full details with all relationships
 
 ### Rules
 
-1. **NEVER use built-in task tools** - use \`lb create\` for subtasks
-2. **Always \`lb ready\`** before asking what to work on
+1. **NEVER use built-in task/todo tools** - ONLY \`lb\`
+   - Not for planning, not for tracking, not for anything
+   - Your memory can be wiped - \`lb\` tickets are persistent
+   - If you need subtasks: \`lb create "..." --parent LIN-XXX\`
+   - There is NO exception to this rule
+2. **Always \`lb sync\` then \`lb ready\`** before asking what to work on
 3. **Always \`lb show\`** to read the full description before starting
 4. **Link discovered work** with \`--discovered-from\` to maintain context graph
 5. **Include descriptions** with enough context for handoff
-6. **Close with reasons** explaining what was done`;
+6. **Close with reasons** explaining what was done
+
+### Why No Built-in Task Tools?
+
+- **Built-in task tracking is ephemeral** - disappears when you're restarted
+- **Other agents/humans can't see your internal todos** - they're siloed
+- **Work gets lost or duplicated** - same task appears multiple times
+- **Linear is the persistent source of truth** - everyone sees it
+
+### Critical for AI Agents: Memory is Ephemeral
+
+**Your memory can be wiped at any time.** Without external persistence:
+- Critical decisions get lost
+- You can't resume work from where you left off
+- Other agents start from scratch
+
+**Offload everything important to \`lb\` tickets:**
+- Design decisions, context, research findings
+- Implementation notes and code snippets  
+- Blockers and dependencies
+- "Where I left off" checkpoints
+
+**Think of \`lb\` as your persistent brain supplement.** Your memory is cache, \`lb\` is database.
+`;
 
 const ONBOARD_CONTENT = `# lb Onboard
 

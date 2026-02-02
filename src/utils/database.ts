@@ -11,6 +11,7 @@ import { requestJsonlExport } from "./jsonl-scheduler.js";
 import type { Issue, Dependency, OutboxItem } from "../types.js";
 
 let db: Database | null = null;
+const LOCAL_ID_PREFIX = "LOCAL-";
 
 /**
  * Get database singleton, initializing schema if needed
@@ -53,6 +54,7 @@ function initSchema(db: Database): void {
         status TEXT NOT NULL,
         priority INTEGER NOT NULL,
         issue_type TEXT,
+        sync_status TEXT NOT NULL DEFAULT 'synced',
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         closed_at TEXT,
@@ -86,6 +88,7 @@ function initSchema(db: Database): void {
           status TEXT NOT NULL,
           priority INTEGER NOT NULL,
           issue_type TEXT,
+          sync_status TEXT NOT NULL DEFAULT 'synced',
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL,
           closed_at TEXT,
@@ -93,7 +96,38 @@ function initSchema(db: Database): void {
           linear_state_id TEXT,
           cached_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
-        INSERT INTO issues_new SELECT * FROM issues;
+        INSERT INTO issues_new (
+          id,
+          identifier,
+          title,
+          description,
+          status,
+          priority,
+          issue_type,
+          created_at,
+          updated_at,
+          closed_at,
+          assignee,
+          linear_state_id,
+          cached_at,
+          sync_status
+        )
+        SELECT
+          id,
+          identifier,
+          title,
+          description,
+          status,
+          priority,
+          issue_type,
+          created_at,
+          updated_at,
+          closed_at,
+          assignee,
+          linear_state_id,
+          cached_at,
+          'synced'
+        FROM issues;
         DROP TABLE issues;
         ALTER TABLE issues_new RENAME TO issues;
         CREATE INDEX idx_issues_identifier ON issues(identifier);
@@ -145,6 +179,7 @@ function initSchema(db: Database): void {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       operation TEXT NOT NULL,
       payload TEXT NOT NULL,
+      local_id TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       retry_count INTEGER NOT NULL DEFAULT 0,
       last_error TEXT
@@ -156,6 +191,29 @@ function initSchema(db: Database): void {
       value TEXT NOT NULL
     );
   `);
+
+  if (currentVersion < 2) {
+    const issueCols = db.query("PRAGMA table_info(issues)").all() as Array<{ name: string }>;
+    const outboxCols = db.query("PRAGMA table_info(outbox)").all() as Array<{ name: string }>;
+
+    if (!issueCols.some((c) => c.name === "sync_status")) {
+      db.exec("ALTER TABLE issues ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'synced'");
+    }
+
+    if (!outboxCols.some((c) => c.name === "local_id")) {
+      db.exec("ALTER TABLE outbox ADD COLUMN local_id TEXT");
+    }
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS issue_id_map (
+        local_id TEXT PRIMARY KEY,
+        linear_id TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+    `);
+
+    db.exec("PRAGMA user_version = 2");
+  }
 }
 
 /**
@@ -328,13 +386,15 @@ export function needsFullSync(): boolean {
 /**
  * Cache an issue
  */
-export function cacheIssue(issue: Issue & { linear_state_id?: string }): void {
+export function cacheIssue(
+  issue: Issue & { linear_state_id?: string; sync_status?: "synced" | "pending" | "failed" }
+): void {
   const db = getDatabase();
   db.run(
     `
     INSERT OR REPLACE INTO issues 
-    (id, identifier, title, description, status, priority, issue_type, created_at, updated_at, closed_at, assignee, linear_state_id, cached_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    (id, identifier, title, description, status, priority, issue_type, sync_status, created_at, updated_at, closed_at, assignee, linear_state_id, cached_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
   `,
     [
       issue.id,
@@ -344,6 +404,7 @@ export function cacheIssue(issue: Issue & { linear_state_id?: string }): void {
       issue.status,
       issue.priority,
       issue.issue_type || null,
+      issue.sync_status || "synced",
       issue.created_at,
       issue.updated_at,
       issue.closed_at || null,
@@ -361,8 +422,8 @@ export function cacheIssues(issues: Array<Issue & { linear_state_id?: string }>)
   const db = getDatabase();
   const insert = db.prepare(`
     INSERT OR REPLACE INTO issues 
-    (id, identifier, title, description, status, priority, issue_type, created_at, updated_at, closed_at, assignee, linear_state_id, cached_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    (id, identifier, title, description, status, priority, issue_type, sync_status, created_at, updated_at, closed_at, assignee, linear_state_id, cached_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
   `);
 
   const transaction = db.transaction(() => {
@@ -375,6 +436,7 @@ export function cacheIssues(issues: Array<Issue & { linear_state_id?: string }>)
         issue.status,
         issue.priority,
         issue.issue_type || null,
+        issue.sync_status || "synced",
         issue.created_at,
         issue.updated_at,
         issue.closed_at || null,
@@ -393,10 +455,10 @@ export function cacheIssues(issues: Array<Issue & { linear_state_id?: string }>)
  */
 export function getCachedIssue(id: string): Issue | null {
   const db = getDatabase();
-  const row = db.query("SELECT * FROM issues WHERE id = ? OR identifier = ?").get(id, id) as Record<
-    string,
-    unknown
-  > | null;
+  const resolvedId = resolveIssueId(id);
+  const row = db
+    .query("SELECT * FROM issues WHERE id = ? OR identifier = ?")
+    .get(resolvedId, resolvedId) as Record<string, unknown> | null;
 
   if (!row) return null;
 
@@ -406,6 +468,7 @@ export function getCachedIssue(id: string): Issue | null {
     description: row.description as string | undefined,
     status: row.status as Issue["status"],
     priority: row.priority as Issue["priority"],
+    sync_status: (row.sync_status as Issue["sync_status"]) || "synced",
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
     closed_at: row.closed_at as string | undefined,
@@ -435,6 +498,7 @@ export function getCachedIssues(): Issue[] {
       description: row.description as string | undefined,
       status: row.status as Issue["status"],
       priority: row.priority as Issue["priority"],
+      sync_status: (row.sync_status as Issue["sync_status"]) || "synced",
       created_at: row.created_at as string,
       updated_at: row.updated_at as string,
       closed_at: row.closed_at as string | undefined,
@@ -470,7 +534,8 @@ export function cacheDependency(dep: Dependency): void {
  */
 export function clearIssueDependencies(issueId: string): void {
   const db = getDatabase();
-  db.run("DELETE FROM dependencies WHERE issue_id = ?", [issueId]);
+  const resolvedId = resolveIssueId(issueId);
+  db.run("DELETE FROM dependencies WHERE issue_id = ?", [resolvedId]);
   requestJsonlExport();
 }
 
@@ -479,14 +544,16 @@ export function clearIssueDependencies(issueId: string): void {
  */
 export function deleteDependency(issueId: string, dependsOnId: string): void {
   const db = getDatabase();
+  const resolvedIssueId = resolveIssueId(issueId);
+  const resolvedDependsOnId = resolveIssueId(dependsOnId);
   db.run("DELETE FROM dependencies WHERE issue_id = ? AND depends_on_id = ?", [
-    issueId,
-    dependsOnId,
+    resolvedIssueId,
+    resolvedDependsOnId,
   ]);
   // Also try the reverse direction
   db.run("DELETE FROM dependencies WHERE issue_id = ? AND depends_on_id = ?", [
-    dependsOnId,
-    issueId,
+    resolvedDependsOnId,
+    resolvedIssueId,
   ]);
   requestJsonlExport();
 }
@@ -496,7 +563,8 @@ export function deleteDependency(issueId: string, dependsOnId: string): void {
  */
 export function getDependencies(issueId: string): Dependency[] {
   const db = getDatabase();
-  const rows = db.query("SELECT * FROM dependencies WHERE issue_id = ?").all(issueId) as Array<
+  const resolvedId = resolveIssueId(issueId);
+  const rows = db.query("SELECT * FROM dependencies WHERE issue_id = ?").all(resolvedId) as Array<
     Record<string, unknown>
   >;
 
@@ -523,9 +591,10 @@ export function getParentId(issueId: string): string | null {
  */
 export function getChildIds(issueId: string): string[] {
   const db = getDatabase();
+  const resolvedId = resolveIssueId(issueId);
   const rows = db
     .query("SELECT issue_id FROM dependencies WHERE depends_on_id = ? AND type = 'parent-child'")
-    .all(issueId) as Array<{ issue_id: string }>;
+    .all(resolvedId) as Array<{ issue_id: string }>;
   return rows.map((r) => r.issue_id);
 }
 
@@ -534,9 +603,10 @@ export function getChildIds(issueId: string): string[] {
  */
 export function getInverseDependencies(issueId: string): Dependency[] {
   const db = getDatabase();
-  const rows = db.query("SELECT * FROM dependencies WHERE depends_on_id = ?").all(issueId) as Array<
-    Record<string, unknown>
-  >;
+  const resolvedId = resolveIssueId(issueId);
+  const rows = db
+    .query("SELECT * FROM dependencies WHERE depends_on_id = ?")
+    .all(resolvedId) as Array<Record<string, unknown>>;
 
   return rows.map((row) => ({
     issue_id: row.issue_id as string,
@@ -552,9 +622,10 @@ export function getInverseDependencies(issueId: string): Dependency[] {
  */
 export function getDependents(issueId: string): Dependency[] {
   const db = getDatabase();
-  const rows = db.query("SELECT * FROM dependencies WHERE depends_on_id = ?").all(issueId) as Array<
-    Record<string, unknown>
-  >;
+  const resolvedId = resolveIssueId(issueId);
+  const rows = db
+    .query("SELECT * FROM dependencies WHERE depends_on_id = ?")
+    .all(resolvedId) as Array<Record<string, unknown>>;
 
   return rows.map((row) => ({
     issue_id: row.issue_id as string,
@@ -617,15 +688,16 @@ export function getBlockedIssueIds(): Set<string> {
  */
 export function queueOutboxItem(
   operation: OutboxItem["operation"],
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  localId?: string
 ): number {
   const db = getDatabase();
   db.run(
     `
-    INSERT INTO outbox (operation, payload)
-    VALUES (?, ?)
+    INSERT INTO outbox (operation, payload, local_id)
+    VALUES (?, ?, ?)
   `,
-    [operation, JSON.stringify(payload)]
+    [operation, JSON.stringify(payload), localId || null]
   );
 
   // Get last insert rowid
@@ -646,6 +718,7 @@ export function getPendingOutboxItems(): OutboxItem[] {
     id: row.id as number,
     operation: row.operation as OutboxItem["operation"],
     payload: JSON.parse(row.payload as string),
+    local_id: (row.local_id as string | null) || undefined,
     created_at: row.created_at as string,
     retry_count: row.retry_count as number,
     last_error: row.last_error as string | undefined,
@@ -708,8 +781,12 @@ export function clearIssuesCache(): void {
  */
 export function deleteCachedIssue(issueId: string): void {
   const db = getDatabase();
-  db.run("DELETE FROM issues WHERE id = ?", [issueId]);
-  db.run("DELETE FROM dependencies WHERE issue_id = ? OR depends_on_id = ?", [issueId, issueId]);
+  const resolvedId = resolveIssueId(issueId);
+  db.run("DELETE FROM issues WHERE id = ?", [resolvedId]);
+  db.run("DELETE FROM dependencies WHERE issue_id = ? OR depends_on_id = ?", [
+    resolvedId,
+    resolvedId,
+  ]);
   requestJsonlExport();
 }
 
@@ -792,6 +869,91 @@ export function pruneStaleIssues(validIds: Set<string>): number {
   }
 
   return pruned;
+}
+
+/**
+ * Store mapping from local ID to Linear ID (identifier)
+ */
+export function setIssueIdMapping(localId: string, linearId: string): void {
+  const db = getDatabase();
+  db.run(
+    `
+    INSERT OR REPLACE INTO issue_id_map (local_id, linear_id, created_at)
+    VALUES (?, ?, ?)
+  `,
+    [localId, linearId, new Date().toISOString()]
+  );
+}
+
+/**
+ * Resolve local ID to Linear ID (identifier)
+ */
+export function getIssueIdMapping(localId: string): string | null {
+  const db = getDatabase();
+  const row = db.query("SELECT linear_id FROM issue_id_map WHERE local_id = ?").get(localId) as {
+    linear_id: string;
+  } | null;
+  return row?.linear_id || null;
+}
+
+export function isLocalId(id: string): boolean {
+  return id.startsWith(LOCAL_ID_PREFIX);
+}
+
+/**
+ * Resolve input ID to Linear ID if mapping exists
+ */
+export function resolveIssueId(id: string): string {
+  if (!isLocalId(id)) return id;
+  return getIssueIdMapping(id) || id;
+}
+
+/**
+ * Resolve Linear ID (identifier) back to local ID
+ */
+export function getLocalIdForLinearId(linearId: string): string | null {
+  const db = getDatabase();
+  const row = db
+    .query("SELECT local_id FROM issue_id_map WHERE linear_id = ?")
+    .get(linearId) as { local_id: string } | null;
+  return row?.local_id || null;
+}
+
+/**
+ * Format issue ID to include local ID when available
+ */
+export function getDisplayId(id: string): string {
+  return resolveIssueId(id);
+}
+
+/**
+ * Replace a local issue ID with a Linear ID in cache + dependencies
+ */
+export function replaceIssueId(localId: string, linearId: string): void {
+  if (localId === linearId) return;
+  const db = getDatabase();
+
+  const existing = db.query("SELECT id FROM issues WHERE id = ?").get(linearId) as {
+    id: string;
+  } | null;
+
+  if (existing) {
+    db.run("DELETE FROM issues WHERE id = ?", [localId]);
+  } else {
+    db.run(
+      `
+      UPDATE issues
+      SET id = ?, identifier = ?, sync_status = 'synced'
+      WHERE id = ?
+    `,
+      [linearId, linearId, localId]
+    );
+  }
+
+  db.run("UPDATE dependencies SET issue_id = ? WHERE issue_id = ?", [linearId, localId]);
+  db.run("UPDATE dependencies SET depends_on_id = ? WHERE depends_on_id = ?", [linearId, localId]);
+
+  requestJsonlExport();
 }
 
 /**

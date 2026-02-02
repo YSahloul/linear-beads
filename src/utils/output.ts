@@ -104,9 +104,9 @@ const PRIORITY_LABELS: Record<number, string> = {
 /**
  * Format issue for human-readable output
  */
-export function formatIssueHuman(issue: Issue): string {
+export function formatIssueHuman(issue: Issue, displayId?: string): string {
   const lines: string[] = [];
-  lines.push(`${issue.id}: ${issue.title}`);
+  lines.push(`${displayId || issue.id}: ${issue.title}`);
   lines.push(`  Status: ${issue.status}`);
   lines.push(`  Priority: ${PRIORITY_LABELS[issue.priority] || issue.priority}`);
   if (issue.issue_type) {

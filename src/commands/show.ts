@@ -4,7 +4,14 @@
 
 import { Command } from "commander";
 import { ensureFresh } from "../utils/sync.js";
-import { getCachedIssue, getDependencies, getInverseDependencies } from "../utils/database.js";
+import {
+  getCachedIssue,
+  getDependencies,
+  getInverseDependencies,
+  getDisplayId,
+  resolveIssueId,
+  isLocalId,
+} from "../utils/database.js";
 import { fetchIssue } from "../utils/linear.js";
 import { formatShowJson, formatIssueHuman, output, outputError } from "../utils/output.js";
 import { isLocalOnly } from "../utils/config.js";
@@ -17,6 +24,7 @@ export const showCommand = new Command("show")
   .option("--team <team>", "Team key (overrides config)")
   .action(async (id: string, options) => {
     try {
+      const resolvedId = resolveIssueId(id);
       const localOnly = isLocalOnly();
 
       // Ensure cache is fresh (skip in local-only mode)
@@ -27,18 +35,18 @@ export const showCommand = new Command("show")
       let issue;
 
       // With --sync, always fetch fresh from Linear to get relations (skip in local-only mode)
-      if (options.sync && !localOnly) {
-        issue = await fetchIssue(id);
+      if (options.sync && !localOnly && !isLocalId(resolvedId)) {
+        issue = await fetchIssue(resolvedId);
       }
 
       // Try cache if not synced or fetch failed
       if (!issue) {
-        issue = getCachedIssue(id);
+        issue = getCachedIssue(resolvedId);
       }
 
       // If still not found, try fetching directly (skip in local-only mode)
-      if (!issue && !localOnly) {
-        issue = await fetchIssue(id);
+      if (!issue && !localOnly && !isLocalId(resolvedId)) {
+        issue = await fetchIssue(resolvedId);
       }
 
       if (!issue) {
@@ -75,7 +83,7 @@ export const showCommand = new Command("show")
         };
         output(JSON.stringify([jsonOutput], null, 2));
       } else {
-        output(formatIssueHuman(issue));
+        output(formatIssueHuman(issue, getDisplayId(issue.id)));
 
         // Show relationships
         let hasRelations = false;
@@ -86,7 +94,9 @@ export const showCommand = new Command("show")
             hasRelations = true;
           }
           const parentIssue = getCachedIssue(parent);
-          output(`Parent: ${parent}${parentIssue ? `: ${parentIssue.title}` : ""}`);
+          output(
+            `Parent: ${getDisplayId(parent)}${parentIssue ? `: ${parentIssue.title}` : ""}`
+          );
         }
 
         if (children.length > 0) {
@@ -97,8 +107,10 @@ export const showCommand = new Command("show")
           output(`Children (${children.length}):`);
           for (const childId of children) {
             const child = getCachedIssue(childId);
-            output(`  ↳ ${childId}${child ? `: ${child.title} [P${child.priority}]` : ""}`);
-          }
+          output(
+            `  ↳ ${getDisplayId(childId)}${child ? `: ${child.title} [P${child.priority}]` : ""}`
+          );
+        }
         }
 
         if (blocks.length > 0) {
@@ -109,8 +121,10 @@ export const showCommand = new Command("show")
           output(`Blocks (${blocks.length}):`);
           for (const blockedId of blocks) {
             const blocked = getCachedIssue(blockedId);
-            output(`  ← ${blockedId}${blocked ? `: ${blocked.title} [P${blocked.priority}]` : ""}`);
-          }
+          output(
+            `  ← ${getDisplayId(blockedId)}${blocked ? `: ${blocked.title} [P${blocked.priority}]` : ""}`
+          );
+        }
         }
 
         if (blockedBy.length > 0) {
@@ -121,8 +135,10 @@ export const showCommand = new Command("show")
           output(`Blocked by (${blockedBy.length}):`);
           for (const blockerId of blockedBy) {
             const blocker = getCachedIssue(blockerId);
-            output(`  → ${blockerId}${blocker ? `: ${blocker.title} [P${blocker.priority}]` : ""}`);
-          }
+          output(
+            `  → ${getDisplayId(blockerId)}${blocker ? `: ${blocker.title} [P${blocker.priority}]` : ""}`
+          );
+        }
         }
 
         if (related.length > 0) {
@@ -133,8 +149,10 @@ export const showCommand = new Command("show")
           output(`Related (${related.length}):`);
           for (const relId of related) {
             const rel = getCachedIssue(relId);
-            output(`  ↔ ${relId}${rel ? `: ${rel.title} [P${rel.priority}]` : ""}`);
-          }
+          output(
+            `  ↔ ${getDisplayId(relId)}${rel ? `: ${rel.title} [P${rel.priority}]` : ""}`
+          );
+        }
         }
       }
     } catch (error) {

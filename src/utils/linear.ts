@@ -1078,12 +1078,13 @@ export async function updateIssue(
 
 /**
  * Update issue parent in Linear
+ * Pass null to remove the parent
  */
-export async function updateIssueParent(issueId: string, parentId: string): Promise<void> {
+export async function updateIssueParent(issueId: string, parentId: string | null): Promise<void> {
   const client = getGraphQLClient();
 
-  // Resolve parentId if it's an identifier
-  const parentUuid = (await resolveIssueId(parentId)) || parentId;
+  // Resolve parentId if it's an identifier (only if not null)
+  const parentUuid = parentId ? ((await resolveIssueId(parentId)) || parentId) : null;
 
   const mutation = `
     mutation UpdateIssueParent($id: String!, $input: IssueUpdateInput!) {

@@ -3,7 +3,14 @@
  */
 
 import { Command } from "commander";
-import { queueOutboxItem, getCachedIssue, cacheIssue } from "../utils/database.js";
+import {
+  queueOutboxItem,
+  getCachedIssue,
+  cacheIssue,
+  getDisplayId,
+  resolveIssueId,
+  isLocalId,
+} from "../utils/database.js";
 import { closeIssue, getTeamId, fetchIssue } from "../utils/linear.js";
 import { formatIssueJson, formatIssueHuman, output, outputError } from "../utils/output.js";
 import { ensureOutboxProcessed } from "../utils/spawn-worker.js";
@@ -18,9 +25,10 @@ export const closeCommand = new Command("close")
   .option("--team <team>", "Team key (overrides config)")
   .action(async (id: string, options) => {
     try {
+      const resolvedId = resolveIssueId(id);
       // Local-only mode: update cache directly
       if (isLocalOnly()) {
-        const issue = getCachedIssue(id);
+        const issue = getCachedIssue(resolvedId);
         if (!issue) {
           outputError(`Issue not found: ${id}`);
           process.exit(1);
@@ -38,51 +46,61 @@ export const closeCommand = new Command("close")
         if (options.json) {
           output(formatIssueJson(closed));
         } else {
-          output(formatIssueHuman(closed));
+          output(formatIssueHuman(closed, getDisplayId(closed.id)));
         }
         return;
       }
 
       if (options.sync) {
+        if (isLocalId(resolvedId)) {
+          outputError(`Issue not synced yet: ${id}`);
+          process.exit(1);
+        }
         // Sync mode: close directly in Linear
         const teamId = await getTeamId(options.team);
-        const issue = await closeIssue(id, teamId, options.reason);
+        const issue = await closeIssue(resolvedId, teamId, options.reason);
 
         if (options.json) {
           output(formatIssueJson(issue));
         } else {
-          output(formatIssueHuman(issue));
+          output(formatIssueHuman(issue, getDisplayId(issue.id)));
         }
       } else {
         // Queue mode: add to outbox and spawn background worker
         queueOutboxItem("close", {
-          issueId: id,
+          issueId: resolvedId,
           reason: options.reason,
-        });
+        }, resolvedId);
 
         // Ensure worker processes the outbox
         ensureOutboxProcessed();
 
         // Return cached issue with status updated
-        let issue = getCachedIssue(id);
+        let issue = getCachedIssue(resolvedId);
         if (!issue) {
-          issue = await fetchIssue(id);
+          try {
+            issue = isLocalId(resolvedId) ? null : await fetchIssue(resolvedId);
+          } catch {
+            issue = null;
+          }
         }
 
         if (issue) {
+          const now = new Date().toISOString();
           const closed = {
             ...issue,
             status: "closed" as const,
-            closed_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
+            closed_at: now,
+            updated_at: now,
           };
+          cacheIssue(closed);
           if (options.json) {
             output(formatIssueJson(closed));
           } else {
-            output(formatIssueHuman(closed));
+            output(formatIssueHuman(closed, getDisplayId(closed.id)));
           }
         } else {
-          output(`Closed: ${id}`);
+          output(`Closed: ${getDisplayId(resolvedId)}`);
         }
       }
     } catch (error) {
