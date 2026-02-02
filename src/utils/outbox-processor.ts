@@ -233,7 +233,7 @@ async function processResolvedItem(
         status?: Issue["status"];
         priority?: Priority;
         deps?: string;
-        parentId?: string;
+        parentId?: string | null;
       };
       await updateIssue(updatePayload.issueId, updatePayload, teamId);
 
@@ -241,9 +241,10 @@ async function processResolvedItem(
         await propagateStatusToParent(updatePayload.issueId, updatePayload.status, teamId);
       }
 
-      if (updatePayload.parentId) {
+      // Handle parent update - check for key existence, not truthiness (null means remove parent)
+      if ("parentId" in updatePayload) {
         try {
-          await updateIssueParent(updatePayload.issueId, updatePayload.parentId);
+          await updateIssueParent(updatePayload.issueId, updatePayload.parentId ?? null);
         } catch {
           // Ignore parent update failures in background
         }
