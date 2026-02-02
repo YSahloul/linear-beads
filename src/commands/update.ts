@@ -77,6 +77,7 @@ export const updateCommand = new Command("update")
   .option("--assign <email>", "Assign to user (email or 'me')")
   .option("--unassign", "Remove assignee")
   .option("--parent <id>", "Set parent issue (makes this a subtask)")
+  .option("--unparent", "Remove parent issue (no longer a subtask)")
   .option("--blocks <id>", "This issue blocks ID (repeatable)", collect)
   .option("--blocked-by <id>", "This issue is blocked by ID (repeatable)", collect)
   .option("--related <id>", "Related issue ID (repeatable)", collect)
@@ -157,7 +158,13 @@ export const updateCommand = new Command("update")
         targetId: resolveIssueId(dep.targetId),
       }));
 
-      if (Object.keys(updates).length === 0 && allDeps.length === 0 && !options.parent) {
+      // Validate --parent and --unparent are mutually exclusive
+      if (options.parent && options.unparent) {
+        outputError("Cannot specify both --parent and --unparent");
+        process.exit(1);
+      }
+
+      if (Object.keys(updates).length === 0 && allDeps.length === 0 && !options.parent && !options.unparent) {
         outputError("No updates specified");
         process.exit(1);
       }
