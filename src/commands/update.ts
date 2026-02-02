@@ -8,9 +8,11 @@ import {
   getCachedIssue,
   cacheIssue,
   cacheDependency,
+  deleteDependency,
   getDisplayId,
   resolveIssueId,
   isLocalId,
+  getDatabase,
 } from "../utils/database.js";
 import {
   updateIssue,
@@ -77,6 +79,7 @@ export const updateCommand = new Command("update")
   .option("--assign <email>", "Assign to user (email or 'me')")
   .option("--unassign", "Remove assignee")
   .option("--parent <id>", "Set parent issue (makes this a subtask)")
+  .option("--unparent", "Remove parent issue (no longer a subtask)")
   .option("--blocks <id>", "This issue blocks ID (repeatable)", collect)
   .option("--blocked-by <id>", "This issue is blocked by ID (repeatable)", collect)
   .option("--related <id>", "Related issue ID (repeatable)", collect)
@@ -157,7 +160,13 @@ export const updateCommand = new Command("update")
         targetId: resolveIssueId(dep.targetId),
       }));
 
-      if (Object.keys(updates).length === 0 && allDeps.length === 0 && !options.parent) {
+      // Validate --parent and --unparent are mutually exclusive
+      if (options.parent && options.unparent) {
+        outputError("Cannot specify both --parent and --unparent");
+        process.exit(1);
+      }
+
+      if (Object.keys(updates).length === 0 && allDeps.length === 0 && !options.parent && !options.unparent) {
         outputError("No updates specified");
         process.exit(1);
       }
@@ -183,6 +192,17 @@ export const updateCommand = new Command("update")
             created_at: now,
             created_by: "local",
           });
+        }
+
+        // Handle unparent
+        if (options.unparent) {
+          const db = getDatabase();
+          const parentDep = db.query(
+            "SELECT * FROM dependencies WHERE issue_id = ? AND type = 'parent-child'"
+          ).get(resolvedId) as { depends_on_id: string } | null;
+          if (parentDep) {
+            deleteDependency(resolvedId, parentDep.depends_on_id);
+          }
         }
 
         // Handle deps
@@ -246,6 +266,25 @@ export const updateCommand = new Command("update")
           }
         }
 
+        // Handle unparent
+        if (options.unparent) {
+          try {
+            await updateIssueParent(resolvedId, null);
+            // Also remove from local cache
+            const db = getDatabase();
+            const parentDep = db.query(
+              "SELECT * FROM dependencies WHERE issue_id = ? AND type = 'parent-child'"
+            ).get(resolvedId) as { depends_on_id: string } | null;
+            if (parentDep) {
+              deleteDependency(resolvedId, parentDep.depends_on_id);
+            }
+          } catch (error) {
+            outputError(
+              `Failed to remove parent: ${error instanceof Error ? error.message : error}`
+            );
+          }
+        }
+
         // Handle deps
         if (allDeps.length > 0) {
           for (const dep of allDeps) {
@@ -297,6 +336,7 @@ export const updateCommand = new Command("update")
         if (options.unassign) payload.unassign = true;
         if (depsString) payload.deps = depsString;
         if (options.parent) payload.parentId = resolveIssueId(options.parent);
+        if (options.unparent) payload.parentId = null;
         // Remove assigneeId from payload - worker will resolve it
         delete payload.assigneeId;
 
@@ -329,6 +369,16 @@ export const updateCommand = new Command("update")
               created_at: now,
               created_by: "local",
             });
+          }
+
+          if (options.unparent) {
+            const db = getDatabase();
+            const parentDep = db.query(
+              "SELECT * FROM dependencies WHERE issue_id = ? AND type = 'parent-child'"
+            ).get(resolvedId) as { depends_on_id: string } | null;
+            if (parentDep) {
+              deleteDependency(resolvedId, parentDep.depends_on_id);
+            }
           }
 
           for (const dep of allDeps) {
