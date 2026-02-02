@@ -11,9 +11,9 @@
  */
 
 import type { HttpsLbCliDevConfigSchemaJson as ConfigTypes } from "../types/config.generated.js";
-import { join } from "path";
+import { join, dirname } from "path";
 import { homedir } from "os";
-import { existsSync, readFileSync } from "fs";
+import { existsSync, readFileSync, statSync } from "fs";
 import { parse as parseJsonc } from "jsonc-parser";
 
 // Combined config type that includes both schema-defined options and legacy env var options
@@ -24,6 +24,55 @@ interface LoadedConfig extends ConfigTypes {
 }
 
 let loadedConfig: LoadedConfig | null = null;
+
+/**
+ * Check if current directory is inside a git worktree
+ * In worktrees, .git is a file pointing to the main repo's .git directory
+ */
+function isWorktree(dir: string = process.cwd()): boolean {
+  const gitPath = join(dir, ".git");
+  if (!existsSync(gitPath)) {
+    return false;
+  }
+
+  try {
+    const stats = statSync(gitPath);
+    // If .git is a file, it's a worktree
+    return stats.isFile();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get the main repository root when in a worktree
+ * Uses git commands to find the actual repo root (not worktree path)
+ */
+function getMainRepoRoot(dir: string = process.cwd()): string | null {
+  try {
+    // Use git rev-parse --git-common-dir to get the main .git directory
+    const { execSync } = require("child_process");
+    const gitCommonDir = execSync("git rev-parse --git-common-dir", {
+      cwd: dir,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "ignore"],
+    }).trim();
+
+    if (gitCommonDir) {
+      // git-common-dir returns path to .git directory, parent is the repo root
+      // Handle relative paths (git returns relative paths when in worktrees)
+      if (gitCommonDir.startsWith("/")) {
+        return dirname(gitCommonDir);
+      } else {
+        // Relative path - resolve from current directory
+        return dirname(join(dir, gitCommonDir));
+      }
+    }
+  } catch {
+    // Not in a git repo or git not available
+  }
+  return null;
+}
 
 /**
  * Get global config path
@@ -122,11 +171,26 @@ export const DEFAULT_CONFIG: LoadedConfig = {
 
 /**
  * Find git root directory
+ * When in a worktree, returns the main repository root (not the worktree path)
  */
 function findGitRootDir(): string | null {
   let dir = process.cwd();
   while (dir !== "/") {
-    if (existsSync(join(dir, ".git"))) {
+    const gitPath = join(dir, ".git");
+    if (existsSync(gitPath)) {
+      // Check if this is a worktree ( .git is a file, not directory)
+      try {
+        const stats = statSync(gitPath);
+        if (stats.isFile()) {
+          // This is a worktree - get the main repo root
+          const mainRepo = getMainRepoRoot(dir);
+          if (mainRepo) {
+            return mainRepo;
+          }
+        }
+      } catch {
+        // Fall through to return dir
+      }
       return dir;
     }
     dir = join(dir, "..");
