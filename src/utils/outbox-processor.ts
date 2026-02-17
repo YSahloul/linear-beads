@@ -192,6 +192,7 @@ async function processResolvedItem(
         issueType?: IssueType;
         parentId?: string;
         deps?: string;
+        labels?: string[];
       };
       const issue = await createIssue({
         title: createPayload.title,
@@ -199,6 +200,7 @@ async function processResolvedItem(
         priority: createPayload.priority,
         issueType: createPayload.issueType,
         parentId: createPayload.parentId,
+        labels: createPayload.labels,
         teamId,
       });
 
@@ -234,6 +236,8 @@ async function processResolvedItem(
         priority?: Priority;
         deps?: string;
         parentId?: string | null;
+        labels?: string[];
+        unlabel?: string[];
       };
       await updateIssue(updatePayload.issueId, updatePayload, teamId);
 

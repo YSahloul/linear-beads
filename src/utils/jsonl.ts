@@ -46,6 +46,9 @@ export function exportToJsonl(): void {
       if (issue.issue_type) {
         issueObj.issue_type = issue.issue_type;
       }
+      if (issue.labels?.length) {
+        issueObj.labels = issue.labels;
+      }
       if (issue.description) {
         issueObj.description = issue.description;
       }

@@ -15,6 +15,7 @@ export interface BeadsIssue {
   status: IssueStatus;
   priority: Priority;
   issue_type?: IssueType;
+  labels?: string[];
   created_at: string;
   updated_at?: string;
   closed_at?: string;
@@ -200,6 +201,7 @@ export async function createImportedIssues(
         description: issue.description,
         priority: issue.priority,
         issueType: issue.issue_type,
+        labels: issue.labels,
         teamId,
         assigneeId: viewer.id,
         status: issue.status,
