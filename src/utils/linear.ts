@@ -11,6 +11,7 @@ import {
   useLabelScope,
   useProjectScope,
   useTypes,
+  getDefaultLabels,
 } from "./config.js";
 import {
   cacheIssue,
@@ -27,6 +28,7 @@ import {
   pruneStaleIssues,
   cacheViewer,
   getCachedViewer,
+  getCachedIssue,
 } from "./database.js";
 import type { Issue, IssueType, Priority, LinearIssue, IssueStatus } from "../types.js";
 import {
@@ -41,8 +43,20 @@ import {
  * Convert Linear issue to bd-compatible issue
  */
 function linearToBdIssue(linear: LinearIssue): Issue & { linear_state_id: string } {
-  const labels = linear.labels.nodes.map((l) => l.name);
-  const issueType = useTypes() ? labelToIssueType(labels) : undefined;
+  const allLabelNames = linear.labels.nodes.map((l) => l.name);
+  const issueType = useTypes() ? labelToIssueType(allLabelNames) : undefined;
+
+  // Extract custom labels: filter out repo scope label and type labels
+  const repoLabel = getRepoLabel();
+  const typeNames = new Set(["bug", "feature", "task", "epic", "chore"]);
+  const customLabels = allLabelNames.filter((name) => {
+    // Skip repo scope label (e.g. "repo:my-project")
+    if (name === repoLabel) return false;
+    // Skip type labels (e.g. "Bug", "Feature") and old format "type:X"
+    if (typeNames.has(name.toLowerCase())) return false;
+    if (name.startsWith("type:")) return false;
+    return true;
+  });
 
   const issue: Issue & { linear_state_id: string } = {
     id: linear.identifier,
@@ -59,6 +73,10 @@ function linearToBdIssue(linear: LinearIssue): Issue & { linear_state_id: string
 
   if (issueType) {
     issue.issue_type = issueType;
+  }
+
+  if (customLabels.length > 0) {
+    issue.labels = customLabels;
   }
 
   return issue;
@@ -325,6 +343,81 @@ export async function ensureTypeLabel(teamId: string, type: IssueType): Promise<
 
   if (!createResult.issueLabelCreate.success) {
     throw new Error(`Failed to create type label: ${labelName}`);
+  }
+
+  cacheLabel(
+    createResult.issueLabelCreate.issueLabel.id,
+    createResult.issueLabelCreate.issueLabel.name,
+    teamId
+  );
+
+  return createResult.issueLabelCreate.issueLabel.id;
+}
+
+/**
+ * Ensure a custom label exists in Linear (look up or create)
+ * Unlike type labels, custom labels are not placed in a group
+ */
+export async function ensureCustomLabel(teamId: string, labelName: string): Promise<string> {
+  // Check cache first
+  const cachedId = getLabelIdByName(labelName);
+  if (cachedId) return cachedId;
+
+  const client = getGraphQLClient();
+
+  // Query existing labels
+  const query = `
+    query GetLabels($teamId: String!) {
+      team(id: $teamId) {
+        labels {
+          nodes {
+            id
+            name
+          }
+        }
+      }
+    }
+  `;
+
+  const result = await client.request<{
+    team: { labels: { nodes: Array<{ id: string; name: string }> } };
+  }>(query, { teamId });
+
+  const existing = result.team.labels.nodes.find(
+    (l) => l.name.toLowerCase() === labelName.toLowerCase()
+  );
+  if (existing) {
+    cacheLabel(existing.id, existing.name, teamId);
+    return existing.id;
+  }
+
+  // Create the label
+  const createMutation = `
+    mutation CreateLabel($input: IssueLabelCreateInput!) {
+      issueLabelCreate(input: $input) {
+        success
+        issueLabel {
+          id
+          name
+        }
+      }
+    }
+  `;
+
+  const createResult = await client.request<{
+    issueLabelCreate: {
+      success: boolean;
+      issueLabel: { id: string; name: string };
+    };
+  }>(createMutation, {
+    input: {
+      name: labelName,
+      teamId,
+    },
+  });
+
+  if (!createResult.issueLabelCreate.success) {
+    throw new Error(`Failed to create label: ${labelName}`);
   }
 
   cacheLabel(
@@ -942,6 +1035,7 @@ export async function createIssue(params: {
   parentId?: string;
   assigneeId?: string;
   status?: IssueStatus;
+  labels?: string[];
 }): Promise<Issue> {
   const client = getGraphQLClient();
 
@@ -958,6 +1052,15 @@ export async function createIssue(params: {
   if (useTypes() && params.issueType) {
     const typeLabelId = await ensureTypeLabel(params.teamId, params.issueType);
     labelIds.push(typeLabelId);
+  }
+
+  // Merge explicit labels with default_labels from config, deduplicate
+  const defaultLabels = getDefaultLabels();
+  const explicitLabels = params.labels || [];
+  const allCustomLabels = [...new Set([...explicitLabels, ...defaultLabels])];
+  for (const labelName of allCustomLabels) {
+    const labelId = await ensureCustomLabel(params.teamId, labelName);
+    labelIds.push(labelId);
   }
 
   // Get project ID if using project or both scoping
@@ -1035,6 +1138,8 @@ export async function updateIssue(
     status?: Issue["status"];
     priority?: Priority;
     assigneeId?: string | null;
+    labels?: string[];
+    unlabel?: string[];
   },
   teamId: string
 ): Promise<Issue> {
@@ -1050,6 +1155,38 @@ export async function updateIssue(
   }
   if (updates.assigneeId !== undefined) {
     input.assigneeId = updates.assigneeId;
+  }
+
+  // Handle label additions and removals
+  if (updates.labels?.length || updates.unlabel?.length) {
+    // Fetch current issue to get existing labels
+    const currentIssue = getCachedIssue(issueId) || (await fetchIssue(issueId));
+    const currentLabels = new Set(currentIssue?.labels || []);
+
+    // Add new labels
+    if (updates.labels) {
+      for (const l of updates.labels) currentLabels.add(l);
+    }
+    // Remove unlabeled
+    if (updates.unlabel) {
+      for (const l of updates.unlabel) currentLabels.delete(l);
+    }
+
+    // Rebuild full labelIds array (repo label + type label + custom labels)
+    const labelIds: string[] = [];
+    if (useLabelScope()) {
+      const repoLabelId = await ensureRepoLabel(teamId);
+      labelIds.push(repoLabelId);
+    }
+    if (useTypes() && currentIssue?.issue_type) {
+      const typeLabelId = await ensureTypeLabel(teamId, currentIssue.issue_type);
+      labelIds.push(typeLabelId);
+    }
+    for (const labelName of currentLabels) {
+      const labelId = await ensureCustomLabel(teamId, labelName);
+      labelIds.push(labelId);
+    }
+    input.labelIds = labelIds;
   }
 
   const mutation = `
