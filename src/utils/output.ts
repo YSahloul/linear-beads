@@ -34,6 +34,8 @@ export function formatIssuesListJson(
     priority: issue.priority,
     // Only include issue_type if set
     ...(issue.issue_type ? { issue_type: issue.issue_type } : {}),
+    // Only include labels if present
+    ...(issue.labels?.length ? { labels: issue.labels } : {}),
     created_at: issue.created_at,
     updated_at: issue.updated_at,
     closed_at: issue.closed_at,
@@ -59,6 +61,8 @@ export function formatReadyJson(
     priority: issue.priority,
     // Only include issue_type if set
     ...(issue.issue_type ? { issue_type: issue.issue_type } : {}),
+    // Only include labels if present
+    ...(issue.labels?.length ? { labels: issue.labels } : {}),
     created_at: issue.created_at,
     updated_at: issue.updated_at,
     // bd-style: only include assignee if non-null
@@ -80,6 +84,8 @@ export function formatShowJson(issue: Issue, dependencies?: Dependency[]): strin
     priority: issue.priority,
     // Only include issue_type if set
     ...(issue.issue_type ? { issue_type: issue.issue_type } : {}),
+    // Only include labels if present
+    ...(issue.labels?.length ? { labels: issue.labels } : {}),
     created_at: issue.created_at,
     updated_at: issue.updated_at,
     closed_at: issue.closed_at,
@@ -111,6 +117,9 @@ export function formatIssueHuman(issue: Issue, displayId?: string): string {
   lines.push(`  Priority: ${PRIORITY_LABELS[issue.priority] || issue.priority}`);
   if (issue.issue_type) {
     lines.push(`  Type: ${issue.issue_type}`);
+  }
+  if (issue.labels?.length) {
+    lines.push(`  Labels: ${issue.labels.join(", ")}`);
   }
   if (issue.assignee) {
     lines.push(`  Assignee: ${issue.assignee}`);

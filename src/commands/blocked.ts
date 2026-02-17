@@ -81,7 +81,8 @@ export const blockedCommand = new Command("blocked")
 
         for (const issue of blockedIssues) {
           const blockers = getBlockersForIssue(issue.id);
-          output(`[P${issue.priority}] ${getDisplayId(issue.id)}: ${issue.title}`);
+          const labelInfo = issue.labels?.length ? ` [${issue.labels.join(", ")}]` : "";
+          output(`[P${issue.priority}] ${getDisplayId(issue.id)}: ${issue.title}${labelInfo}`);
           if (blockers.length > 0) {
             const displayBlockers = blockers.map((id) => getDisplayId(id));
             output(
