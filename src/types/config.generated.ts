@@ -30,4 +30,8 @@ export interface HttpsLbCliDevConfigSchemaJson {
    * How to scope issues to this repo in Linear. 'label' uses repo:name labels (default, backward compatible). 'project' uses Linear Projects. 'both' uses both for filtering/assignment.
    */
   repo_scope?: "label" | "project" | "both";
+  /**
+   * Labels automatically applied to every issue created by lb. Useful for workflow labels like 'AI Refinement'.
+   */
+  default_labels?: string[];
 }

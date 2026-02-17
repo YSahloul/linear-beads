@@ -37,6 +37,7 @@ export interface Issue {
   status: IssueStatus;
   priority: Priority;
   issue_type?: IssueType; // Optional - only set when use_types is enabled
+  labels?: string[]; // Custom Linear labels (excluding repo scope and type labels)
   // Sync status for local-first mode
   sync_status?: "synced" | "pending" | "failed";
   created_at: string;
