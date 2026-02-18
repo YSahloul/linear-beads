@@ -40,17 +40,30 @@ lb update LIN-AAA --deps blocks:LIN-BBB   # AAA blocks BBB
 lb close LIN-XXX --reason "Brief summary of what was done"
 ```
 
+### Labels
+
+```bash
+lb create "Fix bug" -l bug -l frontend        # Create with labels
+lb update LIN-XXX --label urgent               # Add label
+lb update LIN-XXX --unlabel frontend           # Remove label
+lb list --label frontend                       # Filter by label
+```
+
 ### Key Commands Reference
 
-| Command | Purpose |
-|---------|---------|
-| `lb sync` | Sync with Linear |
-| `lb ready` | Show unblocked issues you can work on |
-| `lb list` | Show all issues |
-| `lb show LIN-XXX` | Full issue details |
-| `lb update LIN-XXX --status in_progress` | Claim work |
-| `lb close LIN-XXX --reason "why"` | Complete work |
-| `lb create "Title" --parent LIN-XXX -d "..."` | Create subtask |
+| Command                                       | Purpose                               |
+| --------------------------------------------- | ------------------------------------- |
+| `lb sync`                                     | Sync with Linear                      |
+| `lb ready`                                    | Show unblocked issues you can work on |
+| `lb list`                                     | Show all issues                       |
+| `lb list --label name`                        | Filter by label                       |
+| `lb show LIN-XXX`                             | Full issue details                    |
+| `lb update LIN-XXX --status in_progress`      | Claim work                            |
+| `lb update LIN-XXX --label name`              | Add label                             |
+| `lb update LIN-XXX --unlabel name`            | Remove label                          |
+| `lb close LIN-XXX --reason "why"`             | Complete work                         |
+| `lb create "Title" --parent LIN-XXX -d "..."` | Create subtask                        |
+| `lb create "Title" -l label`                  | Create with label                     |
 
 ### Rules
 
