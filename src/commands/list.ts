@@ -19,6 +19,13 @@ import { useTypes, isLocalOnly } from "../utils/config.js";
 
 const VALID_STATUSES: IssueStatus[] = ["open", "in_progress", "closed"];
 
+/**
+ * Collect repeatable option values into an array
+ */
+function collect(value: string, previous: string[] = []): string[] {
+  return previous.concat([value]);
+}
+
 export const listCommand = new Command("list")
   .description("List issues")
   .option("-j, --json", "Output as JSON")
@@ -29,6 +36,7 @@ export const listCommand = new Command("list")
     "Filter by priority: urgent, high, medium, low, backlog (or 0-4)"
   )
   .option("-t, --type <type>", "Filter by type: bug, feature, task, epic, chore")
+  .option("-l, --label <name>", "Filter by label (repeatable)", collect)
   .option("--sync", "Force sync before listing")
   .option("--team <team>", "Team key (overrides config)")
   .action(async (options) => {
@@ -85,6 +93,10 @@ export const listCommand = new Command("list")
           issues = issues.filter((i) => i.issue_type === options.type);
         }
       }
+      if (options.label?.length) {
+        const filterLabels = options.label as string[];
+        issues = issues.filter((i) => i.labels && filterLabels.every((l) => i.labels!.includes(l)));
+      }
 
       // Sort by priority, then updated_at
       issues.sort((a, b) => {
@@ -118,12 +130,13 @@ export const listCommand = new Command("list")
           const parentDep = deps.find((d) => d.type === "parent-child");
           const parentSuffix = parentDep ? ` (↳ ${getDisplayId(parentDep.depends_on_id)})` : "";
           const syncSuffix = issue.sync_status === "pending" ? " (syncing...)" : "";
+          const labelSuffix = issue.labels?.length ? ` [${issue.labels.join(", ")}]` : "";
           const displayId = getDisplayId(issue.id);
           const priorityName = ["crit", "high", "medi", "low", "back"][issue.priority] || "medi";
           const status = issue.status.padEnd(12);
 
           output(
-            `${displayId}  ${status}  ${priorityName}  ${issue.title}${parentSuffix}${syncSuffix}`
+            `${displayId}  ${status}  ${priorityName}  ${issue.title}${parentSuffix}${labelSuffix}${syncSuffix}`
           );
         }
 

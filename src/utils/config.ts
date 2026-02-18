@@ -167,6 +167,7 @@ export const DEFAULT_CONFIG: LoadedConfig = {
   cache_ttl_seconds: 120,
   local_only: false,
   repo_scope: "label", // Default to label for backward compatibility
+  default_labels: [],
 };
 
 /**
@@ -356,6 +357,14 @@ export function useProjectScope(): boolean {
 export function useLabelScope(): boolean {
   const scope = getRepoScope();
   return scope === "label" || scope === "both";
+}
+
+/**
+ * Get default labels from config
+ * These are automatically applied to every issue created by lb
+ */
+export function getDefaultLabels(): string[] {
+  return (getOption("default_labels") as string[] | undefined) || [];
 }
 
 /**

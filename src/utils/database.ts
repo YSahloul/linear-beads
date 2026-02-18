@@ -214,6 +214,15 @@ function initSchema(db: Database): void {
 
     db.exec("PRAGMA user_version = 2");
   }
+
+  if (currentVersion < 3) {
+    // Add labels column (JSON array stored as TEXT)
+    const issueCols = db.query("PRAGMA table_info(issues)").all() as Array<{ name: string }>;
+    if (!issueCols.some((c) => c.name === "labels")) {
+      db.exec("ALTER TABLE issues ADD COLUMN labels TEXT");
+    }
+    db.exec("PRAGMA user_version = 3");
+  }
 }
 
 /**
@@ -393,8 +402,8 @@ export function cacheIssue(
   db.run(
     `
     INSERT OR REPLACE INTO issues 
-    (id, identifier, title, description, status, priority, issue_type, sync_status, created_at, updated_at, closed_at, assignee, linear_state_id, cached_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    (id, identifier, title, description, status, priority, issue_type, sync_status, created_at, updated_at, closed_at, assignee, linear_state_id, labels, cached_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
   `,
     [
       issue.id,
@@ -410,6 +419,7 @@ export function cacheIssue(
       issue.closed_at || null,
       issue.assignee || null,
       issue.linear_state_id || null,
+      issue.labels?.length ? JSON.stringify(issue.labels) : null,
     ]
   );
   requestJsonlExport();
@@ -422,8 +432,8 @@ export function cacheIssues(issues: Array<Issue & { linear_state_id?: string }>)
   const db = getDatabase();
   const insert = db.prepare(`
     INSERT OR REPLACE INTO issues 
-    (id, identifier, title, description, status, priority, issue_type, sync_status, created_at, updated_at, closed_at, assignee, linear_state_id, cached_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    (id, identifier, title, description, status, priority, issue_type, sync_status, created_at, updated_at, closed_at, assignee, linear_state_id, labels, cached_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
   `);
 
   const transaction = db.transaction(() => {
@@ -441,7 +451,8 @@ export function cacheIssues(issues: Array<Issue & { linear_state_id?: string }>)
         issue.updated_at,
         issue.closed_at || null,
         issue.assignee || null,
-        issue.linear_state_id || null
+        issue.linear_state_id || null,
+        issue.labels?.length ? JSON.stringify(issue.labels) : null
       );
     }
   });
@@ -479,6 +490,14 @@ export function getCachedIssue(id: string): Issue | null {
     issue.issue_type = row.issue_type as Issue["issue_type"];
   }
 
+  if (row.labels) {
+    try {
+      issue.labels = JSON.parse(row.labels as string);
+    } catch {
+      // Ignore invalid JSON
+    }
+  }
+
   return issue;
 }
 
@@ -507,6 +526,14 @@ export function getCachedIssues(): Issue[] {
 
     if (row.issue_type) {
       issue.issue_type = row.issue_type as Issue["issue_type"];
+    }
+
+    if (row.labels) {
+      try {
+        issue.labels = JSON.parse(row.labels as string);
+      } catch {
+        // Ignore invalid JSON
+      }
     }
 
     return issue;

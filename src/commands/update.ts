@@ -83,12 +83,19 @@ export const updateCommand = new Command("update")
   .option("--blocks <id>", "This issue blocks ID (repeatable)", collect)
   .option("--blocked-by <id>", "This issue is blocked by ID (repeatable)", collect)
   .option("--related <id>", "Related issue ID (repeatable)", collect)
+  .option("-l, --label <name>", "Add label (repeatable)", collect)
+  .option("--unlabel <name>", "Remove label (repeatable)", collect)
   .option("-j, --json", "Output as JSON")
   .option("--sync", "Sync immediately (block on network)")
   .option("--team <team>", "Team key (overrides config)")
   .action(async (id: string, options) => {
     try {
       const resolvedId = resolveIssueId(id);
+      const labelAdds: string[] | undefined = options.label?.length ? options.label : undefined;
+      const labelRemoves: string[] | undefined = options.unlabel?.length
+        ? options.unlabel
+        : undefined;
+
       // Validate inputs
       const updates: {
         title?: string;
@@ -96,6 +103,8 @@ export const updateCommand = new Command("update")
         status?: IssueStatus;
         priority?: Priority;
         assigneeId?: string | null;
+        labels?: string[];
+        unlabel?: string[];
       } = {};
 
       if (options.title) updates.title = options.title;
@@ -166,7 +175,16 @@ export const updateCommand = new Command("update")
         process.exit(1);
       }
 
-      if (Object.keys(updates).length === 0 && allDeps.length === 0 && !options.parent && !options.unparent) {
+      // Add label changes to updates
+      if (labelAdds) updates.labels = labelAdds;
+      if (labelRemoves) updates.unlabel = labelRemoves;
+
+      if (
+        Object.keys(updates).length === 0 &&
+        allDeps.length === 0 &&
+        !options.parent &&
+        !options.unparent
+      ) {
         outputError("No updates specified");
         process.exit(1);
       }
@@ -180,7 +198,17 @@ export const updateCommand = new Command("update")
         }
 
         const now = new Date().toISOString();
-        const updated = { ...issue, ...updates, updated_at: now };
+        // Apply label changes locally
+        const currentLabels = new Set(issue.labels || []);
+        if (updates.labels) {
+          for (const l of updates.labels) currentLabels.add(l);
+        }
+        if (updates.unlabel) {
+          for (const l of updates.unlabel) currentLabels.delete(l);
+        }
+        const { labels: _addLabels, unlabel: _rmLabels, ...restUpdates } = updates;
+        const mergedLabels = currentLabels.size > 0 ? [...currentLabels] : undefined;
+        const updated = { ...issue, ...restUpdates, labels: mergedLabels, updated_at: now };
         cacheIssue(updated);
 
         // Handle parent
@@ -197,9 +225,9 @@ export const updateCommand = new Command("update")
         // Handle unparent
         if (options.unparent) {
           const db = getDatabase();
-          const parentDep = db.query(
-            "SELECT * FROM dependencies WHERE issue_id = ? AND type = 'parent-child'"
-          ).get(resolvedId) as { depends_on_id: string } | null;
+          const parentDep = db
+            .query("SELECT * FROM dependencies WHERE issue_id = ? AND type = 'parent-child'")
+            .get(resolvedId) as { depends_on_id: string } | null;
           if (parentDep) {
             deleteDependency(resolvedId, parentDep.depends_on_id);
           }
@@ -272,9 +300,9 @@ export const updateCommand = new Command("update")
             await updateIssueParent(resolvedId, null);
             // Also remove from local cache
             const db = getDatabase();
-            const parentDep = db.query(
-              "SELECT * FROM dependencies WHERE issue_id = ? AND type = 'parent-child'"
-            ).get(resolvedId) as { depends_on_id: string } | null;
+            const parentDep = db
+              .query("SELECT * FROM dependencies WHERE issue_id = ? AND type = 'parent-child'")
+              .get(resolvedId) as { depends_on_id: string } | null;
             if (parentDep) {
               deleteDependency(resolvedId, parentDep.depends_on_id);
             }
@@ -358,7 +386,17 @@ export const updateCommand = new Command("update")
         const now = new Date().toISOString();
 
         if (issue) {
-          const updated = { ...issue, ...updates, updated_at: now };
+          // Merge labels locally for optimistic display
+          const queueLabels = new Set(issue.labels || []);
+          if (updates.labels) {
+            for (const l of updates.labels) queueLabels.add(l);
+          }
+          if (updates.unlabel) {
+            for (const l of updates.unlabel) queueLabels.delete(l);
+          }
+          const { labels: _qAddLabels, unlabel: _qRmLabels, ...qRestUpdates } = updates;
+          const qMergedLabels = queueLabels.size > 0 ? [...queueLabels] : undefined;
+          const updated = { ...issue, ...qRestUpdates, labels: qMergedLabels, updated_at: now };
           cacheIssue(updated);
 
           if (options.parent) {
@@ -373,9 +411,9 @@ export const updateCommand = new Command("update")
 
           if (options.unparent) {
             const db = getDatabase();
-            const parentDep = db.query(
-              "SELECT * FROM dependencies WHERE issue_id = ? AND type = 'parent-child'"
-            ).get(resolvedId) as { depends_on_id: string } | null;
+            const parentDep = db
+              .query("SELECT * FROM dependencies WHERE issue_id = ? AND type = 'parent-child'")
+              .get(resolvedId) as { depends_on_id: string } | null;
             if (parentDep) {
               deleteDependency(resolvedId, parentDep.depends_on_id);
             }

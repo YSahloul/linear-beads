@@ -73,9 +73,10 @@ export const readyCommand = new Command("ready")
           const deps = getDependencies(issue.id);
           const parentDep = deps.find((d) => d.type === "parent-child");
           const parentInfo = parentDep ? ` (↳ ${getDisplayId(parentDep.depends_on_id)})` : "";
+          const labelInfo = issue.labels?.length ? ` [${issue.labels.join(", ")}]` : "";
 
           output(
-            `${index + 1}. [P${issue.priority}] ${getDisplayId(issue.id)}: ${issue.title}${parentInfo}`
+            `${index + 1}. [P${issue.priority}] ${getDisplayId(issue.id)}: ${issue.title}${parentInfo}${labelInfo}`
           );
         });
 

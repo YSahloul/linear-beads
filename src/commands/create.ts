@@ -77,6 +77,7 @@ export const createCommand = new Command("create")
   .option("--blocked-by <id>", "This issue is blocked by ID (repeatable)", collect)
   .option("--related <id>", "Related issue ID (repeatable)", collect)
   .option("--discovered-from <id>", "Found while working on ID (repeatable)", collect)
+  .option("-l, --label <name>", "Add label (repeatable)", collect)
   .option("--assign <email>", "Assign to user (email or 'me')")
   .option("--unassign", "Leave unassigned (skip auto-assign)")
   .option("-j, --json", "Output as JSON")
@@ -136,6 +137,8 @@ export const createCommand = new Command("create")
       }));
       const resolvedParent = options.parent ? resolveIssueId(options.parent) : undefined;
 
+      const labels: string[] | undefined = options.label?.length ? options.label : undefined;
+
       // Local-only mode: create locally without Linear
       if (isLocalOnly()) {
         const localId = generateLocalId();
@@ -148,6 +151,7 @@ export const createCommand = new Command("create")
           status: "open",
           priority,
           issue_type: issueType,
+          labels,
           created_at: now,
           updated_at: now,
         };
@@ -241,6 +245,7 @@ export const createCommand = new Command("create")
           teamId,
           parentId: resolvedParent,
           assigneeId,
+          labels,
         });
 
         // Handle deps after issue creation
@@ -284,6 +289,7 @@ export const createCommand = new Command("create")
           status: "open",
           priority,
           issue_type: issueType,
+          labels,
           sync_status: "pending",
           created_at: now,
           updated_at: now,
@@ -303,6 +309,9 @@ export const createCommand = new Command("create")
         };
         if (issueType) {
           payload.issueType = issueType;
+        }
+        if (labels) {
+          payload.labels = labels;
         }
 
         const db = getDatabase();
