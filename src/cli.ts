@@ -18,6 +18,7 @@ import { deleteCommand } from "./commands/delete.js";
 import { depCommand } from "./commands/dep.js";
 import { syncCommand } from "./commands/sync.js";
 import { onboardCommand } from "./commands/onboard.js";
+import { refineCommand } from "./commands/refine.js";
 import { migrateCommand } from "./commands/migrate.js";
 import { exportCommand } from "./commands/export.js";
 import { verifyConnection } from "./utils/linear.js";
@@ -64,6 +65,7 @@ if (process.argv.includes("--worker")) {
   // Issue operations
   program.addCommand(listCommand);
   program.addCommand(readyCommand);
+  program.addCommand(refineCommand);
   program.addCommand(blockedCommand);
   program.addCommand(showCommand);
   program.addCommand(createCommand);
