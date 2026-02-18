@@ -88,12 +88,14 @@ needs_refinement → ai_ready → todo → in_progress → in_review → done
 
 1. \`lb sync\` → \`lb ready\` - Find unblocked \`todo\` work
 2. \`lb update ID --status in_progress\` - Claim it
-3. Create a worktree: \`git worktree add ../worktree-ID ID-short-desc\`
-4. Code in the worktree, commit as you go
-5. Open PR, then: \`lb update ID --status in_review\`
-6. Human merges → \`lb close ID --reason "why"\`
+3. Use the \`worktree_create\` tool with \`branch: "ID-short-description"\` and \`baseBranch: "main"\`
+4. A new agent session opens automatically in the worktree — it handles the implementation
+5. The worktree session opens a PR, then: \`lb update ID --status in_review\`
+6. The worktree session uses \`worktree_delete\` to clean up when finished
+7. Human merges → \`lb close ID --reason "why"\`
 
 **All coding happens in worktrees**, never directly on main.
+The main session is the **coordinator** — it claims issues and delegates to worktree sessions.
 
 ### Dependencies & Blocking
 
@@ -172,7 +174,7 @@ lb create "Step 3: Do Z" --parent LIN-XXX --blocked-by LIN-YYY
    - There is NO exception to this rule
 2. **Always \`lb sync\` then \`lb ready\`** at the start of every session
 3. **Always \`lb show\`** to read the full description before starting
-4. **Always work in a worktree**, never directly on main
+4. **Always use \`worktree_create\`** to delegate work — never code directly on main
 5. **Create issues immediately** when you discover bugs — use \`--discovered-from\`
 6. **Set \`in_review\` when opening a PR**, not \`done\`
 7. **Include descriptions** with enough context for handoff
