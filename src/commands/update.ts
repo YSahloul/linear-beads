@@ -111,7 +111,14 @@ export const updateCommand = new Command("update")
       if (options.description !== undefined) updates.description = options.description;
 
       if (options.status) {
-        const validStatuses = ["open", "in_progress", "closed"];
+        const validStatuses = [
+          "needs_refinement",
+          "ai_ready",
+          "todo",
+          "in_progress",
+          "in_review",
+          "done",
+        ];
         if (!validStatuses.includes(options.status)) {
           outputError(
             `Invalid status '${options.status}'. Must be one of: ${validStatuses.join(", ")}`

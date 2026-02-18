@@ -5,7 +5,7 @@
 import { Command } from "commander";
 import { output } from "../utils/output.js";
 
-// Instructions that should be added to AGENTS.md
+// Instructions that should be added to AGENTS.md / CLAUDE.md
 const AGENTS_MD_CONTENT = `## CRITICAL: Task Tracking with \`lb\`
 
 > **STOP. READ THIS CAREFULLY.**
@@ -23,27 +23,62 @@ const AGENTS_MD_CONTENT = `## CRITICAL: Task Tracking with \`lb\`
 
 This repo uses \`lb\` for all task management. All tasks live in Linear.
 
-### Quick Start
+### Issue Pipeline
 
-\`\`\`bash
-lb sync                    # Pull latest from Linear
-lb ready                   # See unblocked work (issues with no blockers)
-lb show LIN-XXX            # Read full description before starting
-lb update LIN-XXX --status in_progress   # Claim it
+Every issue flows through these statuses:
+
 \`\`\`
+needs_refinement → ai_ready → todo → in_progress → in_review → done
+\`\`\`
+
+| Status | Meaning |
+|--------|---------|
+| \`needs_refinement\` | Rough idea, needs implementation details |
+| \`ai_ready\` | Refined with details, waiting for human review |
+| \`todo\` | Approved and ready to work on (shown by \`lb ready\`) |
+| \`in_progress\` | Actively being worked on |
+| \`in_review\` | PR open, waiting for human review |
+| \`done\` | Merged and complete |
+
+### Two Paths Into the Pipeline
+
+**Human writes a rough story:**
+1. Human creates issue → status \`needs_refinement\`
+2. Agent picks it up, adds implementation details and acceptance criteria
+3. Agent moves to \`ai_ready\`: \`lb update ID --status ai_ready\`
+4. Human reviews, approves → moves to \`todo\`
+5. Agent picks up from \`lb ready\` → normal coding flow
+
+**Agent discovers a bug/issue while working:**
+1. Agent creates issue with full context → goes straight to \`todo\`
+   \`\`\`bash
+   lb create "Found: race condition in auth" --discovered-from LIN-XXX -d "Details..."
+   \`\`\`
+2. Shows up in \`lb ready\` immediately for any agent to pick up
+
+### Coding Workflow
+
+1. \`lb sync\` → \`lb ready\` - Find unblocked \`todo\` work
+2. \`lb update ID --status in_progress\` - Claim it
+3. Create a worktree: \`git worktree add ../worktree-ID ID-short-desc\`
+4. Code in the worktree, commit as you go
+5. Open PR, then: \`lb update ID --status in_review\`
+6. Human merges → \`lb close ID --reason "why"\`
+
+**All coding happens in worktrees**, never directly on main.
 
 ### Dependencies & Blocking
 
 \`lb\` tracks relationships between issues. \`lb ready\` only shows unblocked issues.
 
 \`\`\`bash
-# This issue blocks another (other can't start until this is done)
+# This issue blocks another
 lb create "Must do first" --blocks LIN-123
 
-# This issue is blocked by another (can't start until other is done)
+# This issue is blocked by another
 lb create "Depends on auth" --blocked-by LIN-100
 
-# Found a bug while working on LIN-50? Link it
+# Found while working on another issue
 lb create "Found: race condition" --discovered-from LIN-50 -d "Details..."
 
 # General relation (doesn't block)
@@ -52,47 +87,28 @@ lb create "Related work" --related LIN-200
 # Manage deps after creation
 lb dep add LIN-A --blocks LIN-B
 lb dep remove LIN-A LIN-B
-lb dep tree LIN-A          # Visualize dependency tree
+lb dep tree LIN-A
 \`\`\`
 
-**Dependency types:**
-- \`--blocks ID\` - This issue must finish before ID can start
-- \`--blocked-by ID\` - This issue can't start until ID finishes
-- \`--related ID\` - Soft link, doesn't block progress
-- \`--discovered-from ID\` - Found while working on ID (creates relation)
+### Labels
+
+Labels are arbitrary tags that flow through to Linear. They are **auto-created** if they don't already exist.
+
+\`\`\`bash
+lb create "Fix login bug" -l bug -l frontend
+lb update LIN-XXX --label urgent
+lb update LIN-XXX --unlabel frontend
+lb list --label frontend
+\`\`\`
 
 ### Planning Work (SUBISSUES, NOT BUILT-IN TODOS)
 
-When you need to break down a task into steps, **create subissues in lb**:
+When you need to break down a task, **create subissues in lb**:
 
 \`\`\`bash
 lb create "Step 1: Do X" --parent LIN-XXX -d "Details..."
 lb create "Step 2: Do Y" --parent LIN-XXX -d "Details..."
-lb create "Step 3: Do Z" --parent LIN-XXX --blocked-by LIN-YYY  # If order matters
-\`\`\`
-
-**Why subissues instead of your built-in task tools?**
-- Subissues persist across sessions - built-in todos don't
-- Other agents and humans can see them in Linear
-- Dependencies are tracked properly
-- Work doesn't get lost or duplicated
-
-### Workflow
-
-1. \`lb ready\` - Find unblocked work
-2. \`lb update ID --status in_progress\` - Claim it
-3. Work on it
-4. Found new issue? \`lb create "Found: X" --discovered-from ID\`
-5. \`lb close ID --reason "Done"\`
-
-### Viewing Issues
-
-\`\`\`bash
-lb list                    # All issues
-lb list --status open      # Filter by status
-lb ready                   # Unblocked issues ready to work
-lb blocked                 # Blocked issues (shows what's blocking them)
-lb show LIN-XXX            # Full details with all relationships
+lb create "Step 3: Do Z" --parent LIN-XXX --blocked-by LIN-YYY
 \`\`\`
 
 ### Key Commands
@@ -100,15 +116,21 @@ lb show LIN-XXX            # Full details with all relationships
 | Command | Purpose |
 |---------|---------|
 | \`lb sync\` | Sync with Linear |
-| \`lb ready\` | Show unblocked issues |
+| \`lb ready\` | Show unblocked \`todo\` issues |
 | \`lb blocked\` | Show blocked issues with blockers |
 | \`lb show ID\` | Full issue details + relationships |
-| \`lb create "Title" -d "..."\` | Create issue |
+| \`lb create "Title" -d "..."\` | Create issue (defaults to \`todo\`) |
+| \`lb create "Title" -l label\` | Create with label |
 | \`lb create "Title" --parent ID\` | Create subtask |
-| \`lb create "Title" --blocked-by ID\` | Create blocked issue |
 | \`lb update ID --status in_progress\` | Claim work |
-| \`lb close ID --reason "why"\` | Complete work |
-| \`lb dep add ID --blocks OTHER\` | Add blocking dependency |
+| \`lb update ID --status in_review\` | PR opened |
+| \`lb update ID --status ai_ready\` | Refinement done |
+| \`lb update ID --label name\` | Add label |
+| \`lb update ID --unlabel name\` | Remove label |
+| \`lb list --status todo\` | Filter by status |
+| \`lb list --label name\` | Filter by label |
+| \`lb close ID --reason "why"\` | Mark done |
+| \`lb dep add ID --blocks OTHER\` | Add dependency |
 | \`lb dep tree ID\` | Show dependency tree |
 
 ### Rules
@@ -120,31 +142,21 @@ lb show LIN-XXX            # Full details with all relationships
    - There is NO exception to this rule
 2. **Always \`lb sync\` then \`lb ready\`** before asking what to work on
 3. **Always \`lb show\`** to read the full description before starting
-4. **Link discovered work** with \`--discovered-from\` to maintain context graph
-5. **Include descriptions** with enough context for handoff
-6. **Close with reasons** explaining what was done
-
-### Why No Built-in Task Tools?
-
-- **Built-in task tracking is ephemeral** - disappears when you're restarted
-- **Other agents/humans can't see your internal todos** - they're siloed
-- **Work gets lost or duplicated** - same task appears multiple times
-- **Linear is the persistent source of truth** - everyone sees it
+4. **Always work in a worktree**, never directly on main
+5. **Set \`in_review\` when opening a PR**, not \`done\`
+6. **Link discovered work** with \`--discovered-from\`
+7. **Include descriptions** with enough context for handoff
+8. **Close with reasons** explaining what was done
 
 ### Critical for AI Agents: Memory is Ephemeral
 
-**Your memory can be wiped at any time.** Without external persistence:
-- Critical decisions get lost
-- You can't resume work from where you left off
-- Other agents start from scratch
-
-**Offload everything important to \`lb\` tickets:**
+**Your memory can be wiped at any time.** Offload everything to \`lb\` tickets:
 - Design decisions, context, research findings
-- Implementation notes and code snippets  
+- Implementation notes and code snippets
 - Blockers and dependencies
 - "Where I left off" checkpoints
 
-**Think of \`lb\` as your persistent brain supplement.** Your memory is cache, \`lb\` is database.
+**\`lb\` is your persistent brain.** Your memory is cache, \`lb\` is database.
 `;
 
 const ONBOARD_CONTENT = `# lb Onboard

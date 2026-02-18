@@ -148,24 +148,24 @@ async function propagateStatusToParent(
   if (!parent) return;
 
   if (newStatus === "in_progress") {
-    if (parent.status === "open") {
+    if (parent.status === "todo") {
       try {
         await updateIssue(parentId, { status: "in_progress" }, teamId);
       } catch {
         return;
       }
     }
-  } else if (newStatus === "closed") {
+  } else if (newStatus === "done") {
     const siblingIds = getChildIds(parentId);
     const hasActiveWork = siblingIds.some((sibId) => {
       if (sibId === issueId) return false;
       const sib = getCachedIssue(sibId);
-      return sib?.status === "in_progress";
+      return sib?.status === "in_progress" || sib?.status === "in_review";
     });
 
     if (!hasActiveWork && parent.status === "in_progress") {
       try {
-        await updateIssue(parentId, { status: "open" }, teamId);
+        await updateIssue(parentId, { status: "todo" }, teamId);
       } catch {
         return;
       }
@@ -285,7 +285,7 @@ async function processResolvedItem(
       };
       await closeIssue(closePayload.issueId, teamId, closePayload.reason);
       if (propagateParent) {
-        await propagateStatusToParent(closePayload.issueId, "closed", teamId);
+        await propagateStatusToParent(closePayload.issueId, "done", teamId);
       }
       break;
     }

@@ -40,7 +40,7 @@ export const importCommand = new Command("import")
 
       // Parse beads JSONL
       const allIssues = parseBeadsJsonl(sourcePath);
-      const openCount = allIssues.filter((i) => i.status !== "closed").length;
+      const openCount = allIssues.filter((i) => i.status !== "done").length;
       const closedCount = allIssues.length - openCount;
 
       output(`Found ${allIssues.length} issues (${openCount} open, ${closedCount} closed)\n`);
