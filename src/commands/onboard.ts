@@ -1,9 +1,14 @@
 /**
  * lb onboard - Output agent instructions
+ *
+ * Automatically handles auth and init if not already done.
  */
 
 import { Command } from "commander";
+import { existsSync } from "fs";
+import { dirname } from "path";
 import { output } from "../utils/output.js";
+import { getDbPath, getApiKey } from "../utils/config.js";
 
 // Instructions that should be added to AGENTS.md / CLAUDE.md
 const AGENTS_MD_CONTENT = `## CRITICAL: Task Tracking with \`lb\`
@@ -187,12 +192,48 @@ After adding the above, run \`lb sync\` then \`lb ready\` to find work.
 export const onboardCommand = new Command("onboard")
   .description("Output agent instructions for lb")
   .option("-o, --output <file>", "Write to file instead of stdout")
+  .option("--team <team>", "Team key (overrides config)")
   .action(async (options) => {
-    if (options.output) {
-      const { writeFileSync } = await import("fs");
-      writeFileSync(options.output, ONBOARD_CONTENT);
-      output(`Written to ${options.output}`);
-    } else {
-      output(ONBOARD_CONTENT);
+    try {
+      // Step 1: Check auth
+      let hasAuth = false;
+      try {
+        getApiKey();
+        hasAuth = true;
+      } catch {
+        // No API key configured
+      }
+
+      if (!hasAuth) {
+        output("No Linear API key found. Running `lb auth`...\n");
+        // Import and run auth inline — this prompts for the API key
+        const { execSync } = await import("child_process");
+        execSync("lb auth", { stdio: "inherit" });
+        output("");
+      }
+
+      // Step 2: Check init
+      const dbPath = getDbPath();
+      const lbDir = dirname(dbPath);
+
+      if (!existsSync(lbDir)) {
+        output("No .lb/ directory found. Running `lb init`...\n");
+        const { execSync } = await import("child_process");
+        const initCmd = options.team ? `lb init --team ${options.team}` : "lb init";
+        execSync(initCmd, { stdio: "inherit" });
+        output("");
+      }
+
+      // Step 3: Output instructions
+      if (options.output) {
+        const { writeFileSync } = await import("fs");
+        writeFileSync(options.output, ONBOARD_CONTENT);
+        output(`Written to ${options.output}`);
+      } else {
+        output(ONBOARD_CONTENT);
+      }
+    } catch (error) {
+      console.error("Error:", error instanceof Error ? error.message : error);
+      process.exit(1);
     }
   });
