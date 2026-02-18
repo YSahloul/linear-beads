@@ -28,6 +28,27 @@ const AGENTS_MD_CONTENT = `## CRITICAL: Task Tracking with \`lb\`
 
 This repo uses \`lb\` for all task management. All tasks live in Linear.
 
+### Every Session (MANDATORY)
+
+Run these commands at the **start of every session**, before doing anything else:
+
+\`\`\`bash
+lb sync        # Pull latest issues from Linear
+lb ready       # See what's available to work on
+\`\`\`
+
+If you discover bugs or issues while working, create them **immediately** — do not wait:
+
+\`\`\`bash
+lb create "Found: <description>" --discovered-from LIN-XXX -d "Details..."
+\`\`\`
+
+Before ending a session:
+
+\`\`\`bash
+lb sync        # Push any changes back to Linear
+\`\`\`
+
 ### Issue Pipeline
 
 Every issue flows through these statuses:
@@ -149,13 +170,14 @@ lb create "Step 3: Do Z" --parent LIN-XXX --blocked-by LIN-YYY
    - Your memory can be wiped - \`lb\` tickets are persistent
    - If you need subtasks: \`lb create "..." --parent LIN-XXX\`
    - There is NO exception to this rule
-2. **Always \`lb sync\` then \`lb ready\`** before asking what to work on
+2. **Always \`lb sync\` then \`lb ready\`** at the start of every session
 3. **Always \`lb show\`** to read the full description before starting
 4. **Always work in a worktree**, never directly on main
-5. **Set \`in_review\` when opening a PR**, not \`done\`
-6. **Link discovered work** with \`--discovered-from\`
+5. **Create issues immediately** when you discover bugs — use \`--discovered-from\`
+6. **Set \`in_review\` when opening a PR**, not \`done\`
 7. **Include descriptions** with enough context for handoff
 8. **Close with reasons** explaining what was done
+9. **Always \`lb sync\`** before ending a session
 
 ### Critical for AI Agents: Memory is Ephemeral
 
