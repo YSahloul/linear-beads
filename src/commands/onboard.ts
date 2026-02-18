@@ -85,11 +85,36 @@ lb create "Step 3: Do Z" --parent LIN-XXX --blocked-by LIN-YYY  # If order matte
 4. Found new issue? \`lb create "Found: X" --discovered-from ID\`
 5. \`lb close ID --reason "Done"\`
 
+### Labels
+
+Labels are arbitrary tags that flow through to Linear. Use them to categorize work, drive automation, or filter views.
+
+\`\`\`bash
+# Add labels when creating
+lb create "Fix login bug" -l bug -l frontend
+
+# Add/remove labels on existing issues
+lb update LIN-XXX --label urgent
+lb update LIN-XXX --unlabel frontend
+
+# Filter by label
+lb list --label frontend
+lb list --label urgent --label frontend   # AND filter (must have both)
+\`\`\`
+
+Labels appear in \`lb show\`, \`lb list\`, \`lb ready\`, and \`lb blocked\` output.
+
+You can set \`default_labels\` in \`.lb/config.jsonc\` to auto-apply labels to every new issue:
+\`\`\`jsonc
+{ "default_labels": ["my-project"] }
+\`\`\`
+
 ### Viewing Issues
 
 \`\`\`bash
 lb list                    # All issues
 lb list --status open      # Filter by status
+lb list --label frontend   # Filter by label
 lb ready                   # Unblocked issues ready to work
 lb blocked                 # Blocked issues (shows what's blocking them)
 lb show LIN-XXX            # Full details with all relationships
@@ -104,9 +129,13 @@ lb show LIN-XXX            # Full details with all relationships
 | \`lb blocked\` | Show blocked issues with blockers |
 | \`lb show ID\` | Full issue details + relationships |
 | \`lb create "Title" -d "..."\` | Create issue |
+| \`lb create "Title" -l label\` | Create with label |
 | \`lb create "Title" --parent ID\` | Create subtask |
 | \`lb create "Title" --blocked-by ID\` | Create blocked issue |
 | \`lb update ID --status in_progress\` | Claim work |
+| \`lb update ID --label name\` | Add label |
+| \`lb update ID --unlabel name\` | Remove label |
+| \`lb list --label name\` | Filter by label |
 | \`lb close ID --reason "why"\` | Complete work |
 | \`lb dep add ID --blocks OTHER\` | Add blocking dependency |
 | \`lb dep tree ID\` | Show dependency tree |
