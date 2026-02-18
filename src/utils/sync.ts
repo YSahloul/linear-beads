@@ -135,40 +135,15 @@ export async function fullSync(teamKey?: string): Promise<{
  */
 export async function smartSync(
   teamKey?: string,
-  forceFullSync: boolean = false
+  _forceFullSync: boolean = false
 ): Promise<{
   pushed: { success: number; failed: number };
   pulled: number;
   pruned?: number;
   type: "incremental" | "full" | "skipped";
 }> {
-  // Check if we should do a full sync
-  const shouldFullSync = forceFullSync || needsFullSync();
-
-  // If full sync is needed and worker is already running, skip
-  // (the worker will handle the full sync)
-  if (shouldFullSync && isWorkerRunning() && !forceFullSync) {
-    // Do incremental in foreground, worker will handle full sync
-    const result = await incrementalSync(teamKey);
-    if (result) {
-      return { ...result, type: "incremental" };
-    }
-    // If first run, do full sync anyway
-  }
-
-  if (shouldFullSync || !getLastSync()) {
-    // Full sync
-    return fullSyncPaginated(teamKey);
-  } else {
-    // Incremental sync
-    const result = await incrementalSync(teamKey);
-    if (result) {
-      return result;
-    } else {
-      // Fallback to full if incremental isn't possible (first run edge case)
-      return fullSyncPaginated(teamKey);
-    }
-  }
+  // Always do a full sync — the dataset is small and agents need fresh data every time
+  return fullSyncPaginated(teamKey);
 }
 
 /**

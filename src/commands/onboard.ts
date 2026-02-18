@@ -84,7 +84,7 @@ needs_refinement → ai_ready → todo → in_progress → in_review → done
    \`\`\`
 2. Shows up in \`lb ready\` immediately for any agent to pick up
 
-### Coding Workflow
+### Coding Workflow (Main Session = Coordinator)
 
 1. \`lb sync\` → \`lb ready\` - Find unblocked \`todo\` work
 2. \`lb update ID --status in_progress\` - Claim it
@@ -96,6 +96,18 @@ needs_refinement → ai_ready → todo → in_progress → in_review → done
 
 **All coding happens in worktrees**, never directly on main.
 The main session is the **coordinator** — it claims issues and delegates to worktree sessions.
+
+### Worktree Sessions (When You Start Inside a Worktree)
+
+If your branch name starts with an issue ID (e.g. \`AGE-99-fix-auth\`), you are a **worktree agent**.
+Your job is to implement that specific issue. Follow these steps:
+
+1. \`lb sync\` — pull all issues from Linear
+2. Extract the issue ID from your branch name (e.g. \`AGE-99\` from \`AGE-99-fix-auth\`)
+3. \`lb show AGE-99\` — read the full issue description
+4. \`lb update AGE-99 --status in_progress\` — claim it
+5. **Start working immediately.** You know what to do from \`lb show\`.
+6. When done, open a PR and \`lb update AGE-99 --status in_review\`
 
 ### Dependencies & Blocking
 
