@@ -87,7 +87,7 @@ lb create "Step 3: Do Z" --parent LIN-XXX --blocked-by LIN-YYY  # If order matte
 
 ### Labels
 
-Labels are arbitrary tags that flow through to Linear. Use them to categorize work, drive automation, or filter views.
+Labels are arbitrary tags that flow through to Linear. Use them to categorize work, drive automation, or filter views. Labels are **auto-created** in Linear if they don't already exist — just use any name and it works.
 
 \`\`\`bash
 # Add labels when creating
