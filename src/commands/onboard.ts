@@ -44,10 +44,12 @@ needs_refinement → ai_ready → todo → in_progress → in_review → done
 
 **Human writes a rough story:**
 1. Human creates issue → status \`needs_refinement\`
-2. Agent picks it up, adds implementation details and acceptance criteria
-3. Agent moves to \`ai_ready\`: \`lb update ID --status ai_ready\`
-4. Human reviews, approves → moves to \`todo\`
-5. Agent picks up from \`lb ready\` → normal coding flow
+2. Agent runs \`lb refine\` to find issues needing refinement
+3. Agent runs \`lb refine ID\` to see the issue + refinement checklist
+4. Agent adds implementation details, acceptance criteria, technical approach
+5. Agent moves to \`ai_ready\`: \`lb update ID --status ai_ready\`
+6. Human reviews, approves → moves to \`todo\`
+7. Agent picks up from \`lb ready\` → normal coding flow
 
 **Agent discovers a bug/issue while working:**
 1. Agent creates issue with full context → goes straight to \`todo\`
@@ -117,6 +119,8 @@ lb create "Step 3: Do Z" --parent LIN-XXX --blocked-by LIN-YYY
 |---------|---------|
 | \`lb sync\` | Sync with Linear |
 | \`lb ready\` | Show unblocked \`todo\` issues |
+| \`lb refine\` | List issues needing refinement |
+| \`lb refine ID\` | Show issue + refinement checklist |
 | \`lb blocked\` | Show blocked issues with blockers |
 | \`lb show ID\` | Full issue details + relationships |
 | \`lb create "Title" -d "..."\` | Create issue (defaults to \`todo\`) |
