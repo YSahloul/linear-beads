@@ -115,7 +115,7 @@ export function filterIssues(issues: BeadsIssue[], options: ImportOptions): Bead
 
   // Filter by status (skip closed unless --include-closed)
   if (!options.includeClosed) {
-    filtered = filtered.filter((issue) => issue.status !== "closed");
+    filtered = filtered.filter((issue) => issue.status !== "done");
   }
 
   // Filter by date (--since)

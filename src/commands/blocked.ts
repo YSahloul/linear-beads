@@ -29,7 +29,7 @@ function getBlockersForIssue(issueId: string): string[] {
     .map((r) => r.issue_id)
     .filter((id) => {
       const blocker = getCachedIssue(id);
-      return blocker && blocker.status !== "closed";
+      return blocker && blocker.status !== "done";
     });
 }
 
@@ -55,7 +55,7 @@ export const blockedCommand = new Command("blocked")
 
       // Get the actual issues
       const allIssues = getCachedIssues();
-      const blockedIssues = allIssues.filter((i) => blockedIds.has(i.id) && i.status !== "closed");
+      const blockedIssues = allIssues.filter((i) => blockedIds.has(i.id) && i.status !== "done");
 
       if (blockedIssues.length === 0) {
         output("No blocked issues.");

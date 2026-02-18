@@ -3,8 +3,14 @@
  * Designed to match bd (beads) JSON output as closely as possible
  */
 
-// Issue status - matches bd semantics, maps to Linear workflow states
-export type IssueStatus = "open" | "in_progress" | "closed";
+// Issue status - maps to Linear workflow states
+export type IssueStatus =
+  | "needs_refinement"
+  | "ai_ready"
+  | "todo"
+  | "in_progress"
+  | "in_review"
+  | "done";
 
 // Issue type - matches bd
 export type IssueType = "bug" | "feature" | "task" | "epic" | "chore";
@@ -140,33 +146,69 @@ export interface Config {
 }
 
 /**
- * Map bd status to Linear workflow state type
+ * Map lb status to Linear workflow state name
  */
-export function statusToLinearState(status: IssueStatus): string {
+export function statusToLinearStateName(status: IssueStatus): string {
   switch (status) {
-    case "open":
-      return "unstarted";
+    case "needs_refinement":
+      return "Needs Refinement";
+    case "ai_ready":
+      return "AI Ready";
+    case "todo":
+      return "Todo";
     case "in_progress":
-      return "started";
-    case "closed":
-      return "completed";
+      return "In Progress";
+    case "in_review":
+      return "In Review";
+    case "done":
+      return "Done";
   }
 }
 
 /**
- * Map Linear workflow state type to bd status
+ * Map Linear workflow state name to lb status
  */
-export function linearStateToStatus(stateType: string): IssueStatus {
-  switch (stateType) {
-    case "started":
+export function linearStateToStatus(stateName: string): IssueStatus {
+  switch (stateName) {
+    case "Needs Refinement":
+      return "needs_refinement";
+    case "AI Ready":
+      return "ai_ready";
+    case "Todo":
+      return "todo";
+    case "In Progress":
       return "in_progress";
-    case "completed":
-    case "canceled":
-      return "closed";
+    case "In Review":
+      return "in_review";
+    case "Done":
+      return "done";
+    // Fallbacks for other states
     default:
-      return "open";
+      return "todo";
   }
 }
+
+/** Statuses considered "active" (not finished) */
+export const ACTIVE_STATUSES: IssueStatus[] = [
+  "needs_refinement",
+  "ai_ready",
+  "todo",
+  "in_progress",
+  "in_review",
+];
+
+/** Statuses considered "finished" */
+export const FINISHED_STATUSES: IssueStatus[] = ["done"];
+
+/** All valid statuses */
+export const VALID_STATUSES: IssueStatus[] = [
+  "needs_refinement",
+  "ai_ready",
+  "todo",
+  "in_progress",
+  "in_review",
+  "done",
+];
 
 /**
  * Valid issue types

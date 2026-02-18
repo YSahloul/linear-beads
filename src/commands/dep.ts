@@ -61,9 +61,9 @@ function printTree(
   const blockers = incoming.filter((d) => d.type === "blocks");
   const openBlockers = blockers.filter((d) => {
     const blockerIssue = getCachedIssue(d.issue_id);
-    return blockerIssue && blockerIssue.status !== "closed";
+    return blockerIssue && blockerIssue.status !== "done";
   });
-  const isReady = openBlockers.length === 0 && status !== "closed";
+  const isReady = openBlockers.length === 0 && status !== "done";
   const readyTag = isReady ? " [READY]" : "";
 
   if (prefix === "") {
@@ -487,7 +487,7 @@ const listCommand = new Command("list")
         blockedBy.forEach((dep) => {
           const blockerIssue = getCachedIssue(dep.issue_id);
           const status = blockerIssue?.status || "unknown";
-          const isOpen = status !== "closed";
+          const isOpen = status !== "done";
           const icon = isOpen ? "🔴" : "✅";
           output(
             `  ${icon} ${getDisplayId(dep.issue_id)} - ${blockerIssue?.title || "Unknown"} (${status})`

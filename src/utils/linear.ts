@@ -36,7 +36,7 @@ import {
   linearToPriority,
   labelToIssueType,
   priorityToLinear,
-  statusToLinearState,
+  statusToLinearStateName,
 } from "../types.js";
 
 /**
@@ -62,7 +62,7 @@ function linearToBdIssue(linear: LinearIssue): Issue & { linear_state_id: string
     id: linear.identifier,
     title: linear.title,
     description: linear.description || undefined,
-    status: linearStateToStatus(linear.state.type),
+    status: linearStateToStatus(linear.state.name),
     priority: linearToPriority(linear.priority),
     created_at: linear.createdAt,
     updated_at: linear.updatedAt,
@@ -498,7 +498,7 @@ export async function getTeamId(teamKey?: string): Promise<string> {
  */
 export async function getWorkflowStateId(teamId: string, status: Issue["status"]): Promise<string> {
   const client = getGraphQLClient();
-  const stateType = statusToLinearState(status);
+  const stateName = statusToLinearStateName(status);
 
   const query = `
     query GetWorkflowStates($teamId: String!) {
@@ -518,9 +518,9 @@ export async function getWorkflowStateId(teamId: string, status: Issue["status"]
     team: { states: { nodes: Array<{ id: string; name: string; type: string }> } };
   }>(query, { teamId });
 
-  const state = result.team.states.nodes.find((s) => s.type === stateType);
+  const state = result.team.states.nodes.find((s) => s.name === stateName);
   if (!state) {
-    throw new Error(`Workflow state not found for type: ${stateType}`);
+    throw new Error(`Workflow state not found: ${stateName}`);
   }
 
   return state.id;
@@ -1069,7 +1069,7 @@ export async function createIssue(params: {
     projectId = await ensureRepoProject(params.teamId);
   }
 
-  const stateId = await getWorkflowStateId(params.teamId, params.status || "open");
+  const stateId = await getWorkflowStateId(params.teamId, params.status || "todo");
 
   // Resolve parentId if provided (identifier -> UUID)
   let parentUuid: string | undefined;
@@ -1245,7 +1245,7 @@ export async function updateIssueParent(issueId: string, parentId: string | null
  */
 export async function closeIssue(issueId: string, teamId: string, reason?: string): Promise<Issue> {
   const client = getGraphQLClient();
-  const stateId = await getWorkflowStateId(teamId, "closed");
+  const stateId = await getWorkflowStateId(teamId, "done");
 
   // Build input - add reason as comment if provided
   const input: Record<string, unknown> = { stateId };

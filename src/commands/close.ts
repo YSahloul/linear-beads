@@ -37,7 +37,7 @@ export const closeCommand = new Command("close")
         const now = new Date().toISOString();
         const closed = {
           ...issue,
-          status: "closed" as const,
+          status: "done" as const,
           closed_at: now,
           updated_at: now,
         };
@@ -93,7 +93,7 @@ export const closeCommand = new Command("close")
           const now = new Date().toISOString();
           const closed = {
             ...issue,
-            status: "closed" as const,
+            status: "done" as const,
             closed_at: now,
             updated_at: now,
           };

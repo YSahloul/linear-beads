@@ -17,7 +17,14 @@ import type { IssueStatus } from "../types.js";
 import { parsePriority, VALID_ISSUE_TYPES } from "../types.js";
 import { useTypes, isLocalOnly } from "../utils/config.js";
 
-const VALID_STATUSES: IssueStatus[] = ["open", "in_progress", "closed"];
+const VALID_STATUSES: IssueStatus[] = [
+  "needs_refinement",
+  "ai_ready",
+  "todo",
+  "in_progress",
+  "in_review",
+  "done",
+];
 
 /**
  * Collect repeatable option values into an array
