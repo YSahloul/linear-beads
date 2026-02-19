@@ -88,10 +88,17 @@ needs_refinement → ai_ready → todo → in_progress → in_review → done
 
 1. \`lb sync\` → \`lb ready\` - Find unblocked \`todo\` work
 2. \`lb update ID --status in_progress\` - Claim it
-3. Use the \`worktree_create\` tool with \`branch: "ID-short-description"\` and \`baseBranch: "main"\`
-4. A new agent session opens automatically in the worktree — it handles the implementation
+3. Create a worktree for the issue:
+   \`\`\`bash
+   lb worktree create ID-short-description
+   \`\`\`
+   This automatically: creates the git worktree as a sibling directory, copies all \`.env\` files, symlinks \`node_modules/\` and \`.opencode/\`, and runs \`lb onboard\` + \`lb sync\`.
+4. A new agent session opens in the worktree — it handles the implementation
 5. The worktree session opens a PR, then: \`lb update ID --status in_review\`
-6. The worktree session uses \`worktree_delete\` to clean up when finished
+6. Clean up when finished:
+   \`\`\`bash
+   lb worktree delete ID-short-description
+   \`\`\`
 7. Human merges → \`lb close ID --reason "why"\`
 
 **All coding happens in worktrees**, never directly on main.
@@ -108,6 +115,25 @@ Your job is to implement that specific issue. Follow these steps:
 4. \`lb update AGE-99 --status in_progress\` — claim it
 5. **Start working immediately.** You know what to do from \`lb show\`.
 6. When done, open a PR and \`lb update AGE-99 --status in_review\`
+
+### Worktree Management
+
+\`\`\`bash
+# Create a worktree (copies .env, symlinks node_modules/.opencode, runs lb onboard + sync)
+lb worktree create AGE-42-fix-auth
+
+# Create from a specific base branch
+lb worktree create AGE-42-fix-auth --base develop
+
+# List active worktrees
+lb worktree list
+
+# Remove a worktree (checks for uncommitted/unpushed work)
+lb worktree delete AGE-42-fix-auth
+
+# Force remove (skip safety checks)
+lb worktree delete AGE-42-fix-auth --force
+\`\`\`
 
 ### Dependencies & Blocking
 
@@ -176,6 +202,9 @@ lb create "Step 3: Do Z" --parent LIN-XXX --blocked-by LIN-YYY
 | \`lb close ID --reason "why"\` | Mark done |
 | \`lb dep add ID --blocks OTHER\` | Add dependency |
 | \`lb dep tree ID\` | Show dependency tree |
+| \`lb worktree create BRANCH\` | Create worktree (full setup) |
+| \`lb worktree delete BRANCH\` | Remove worktree (safety checks) |
+| \`lb worktree list\` | List active worktrees |
 
 ### Rules
 
@@ -186,7 +215,7 @@ lb create "Step 3: Do Z" --parent LIN-XXX --blocked-by LIN-YYY
    - There is NO exception to this rule
 2. **Always \`lb sync\` then \`lb ready\`** at the start of every session
 3. **Always \`lb show\`** to read the full description before starting
-4. **Always use \`worktree_create\`** to delegate work — never code directly on main
+4. **Always use \`lb worktree create\`** to delegate work — never code directly on main
 5. **Create issues immediately** when you discover bugs — use \`--discovered-from\`
 6. **Set \`in_review\` when opening a PR**, not \`done\`
 7. **Include descriptions** with enough context for handoff

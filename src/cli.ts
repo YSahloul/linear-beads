@@ -21,6 +21,7 @@ import { onboardCommand } from "./commands/onboard.js";
 import { refineCommand } from "./commands/refine.js";
 import { migrateCommand } from "./commands/migrate.js";
 import { exportCommand } from "./commands/export.js";
+import { worktreeCommand } from "./commands/worktree.js";
 import { verifyConnection } from "./utils/linear.js";
 import { closeDatabase } from "./utils/database.js";
 import { exportToJsonl } from "./utils/jsonl.js";
@@ -73,6 +74,9 @@ if (process.argv.includes("--worker")) {
   program.addCommand(closeCommand);
   program.addCommand(deleteCommand);
   program.addCommand(depCommand);
+
+  // Worktree management
+  program.addCommand(worktreeCommand);
 
   // Sync & interop
   program.addCommand(syncCommand);
