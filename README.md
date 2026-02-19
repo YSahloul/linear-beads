@@ -63,15 +63,34 @@ These map directly to Linear workflow states with the same names.
 lb sync                                           # Refresh from Linear
 lb ready                                          # Find unblocked todo work
 lb update TEAM-123 --status in_progress           # Claim it
-git worktree add ../worktree-123 TEAM-123-desc    # Create worktree
-# ... code in the worktree, commit as you go ...
+lb worktree create TEAM-123-fix-auth              # Create worktree (full setup)
+# ... agent codes in the worktree, commits as it goes ...
 gh pr create                                      # Open PR
 lb update TEAM-123 --status in_review             # Signal PR is ready
+lb worktree delete TEAM-123-fix-auth              # Clean up worktree
 # Human merges
 lb close TEAM-123 --reason "Implemented feature"  # Mark done
 ```
 
 All coding happens in worktrees, never directly on main.
+
+### Worktree Management
+
+`lb worktree create` automates the full worktree setup in one command:
+
+1. Creates git worktree as a sibling directory
+2. Copies all `.env` files (preserving directory structure)
+3. Symlinks `node_modules/`, `.opencode/`, `.claude/`
+4. Runs `lb onboard` + `lb sync`
+
+```bash
+lb worktree create AGE-42-fix-auth              # Create from default branch
+lb worktree create AGE-42-fix-auth --base dev   # Create from specific branch
+lb worktree list                                # Show active worktrees
+lb worktree list --json                         # JSON output
+lb worktree delete AGE-42-fix-auth              # Remove (checks for uncommitted work)
+lb worktree delete AGE-42-fix-auth --force      # Force remove
+```
 
 ## Commands
 
@@ -112,6 +131,16 @@ All coding happens in worktrees, never directly on main.
 | `lb dep add <A> --blocks <B>`            | Add dependency after creation  |
 | `lb dep remove <A> <B>`                  | Remove dependency              |
 | `lb dep tree <ID>`                       | Show dependency tree           |
+
+### Worktrees
+
+| Command                                  | Purpose                              |
+| ---------------------------------------- | ------------------------------------ |
+| `lb worktree create <branch>`            | Create worktree with full setup      |
+| `lb worktree create <branch> --base dev` | Create from specific base branch     |
+| `lb worktree list`                       | List active worktrees                |
+| `lb worktree delete <branch>`            | Remove worktree (with safety checks) |
+| `lb worktree delete <branch> --force`    | Force remove (skip safety checks)    |
 
 ### Setup
 
