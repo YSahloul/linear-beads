@@ -5,9 +5,9 @@
 
 // Issue status - maps to Linear workflow states
 export type IssueStatus =
-  | "needs_refinement"
-  | "ai_ready"
-  | "todo"
+  | "todo_needs_refinement"
+  | "todo_refined"
+  | "todo_bug"
   | "in_progress"
   | "in_review"
   | "done";
@@ -150,18 +150,18 @@ export interface Config {
  */
 export function statusToLinearStateName(status: IssueStatus): string {
   switch (status) {
-    case "needs_refinement":
-      return "Needs Refinement";
-    case "ai_ready":
-      return "AI Ready";
-    case "todo":
-      return "Todo";
+    case "todo_needs_refinement":
+      return "Todo Needs Refinement";
+    case "todo_refined":
+      return "Todo Refined";
     case "in_progress":
       return "In Progress";
     case "in_review":
       return "In Review";
     case "done":
       return "Done";
+    case "todo_bug":
+      return "Todo Bug";
   }
 }
 
@@ -170,29 +170,29 @@ export function statusToLinearStateName(status: IssueStatus): string {
  */
 export function linearStateToStatus(stateName: string): IssueStatus {
   switch (stateName) {
-    case "Needs Refinement":
-      return "needs_refinement";
-    case "AI Ready":
-      return "ai_ready";
-    case "Todo":
-      return "todo";
+    case "Todo Needs Refinement":
+      return "todo_needs_refinement";
+    case "Todo Refined":
+      return "todo_refined";
     case "In Progress":
       return "in_progress";
     case "In Review":
       return "in_review";
     case "Done":
       return "done";
+    case "Todo Bug":
+      return "todo_bug";
     // Fallbacks for other states
     default:
-      return "todo";
+      return "todo_needs_refinement";
   }
 }
 
 /** Statuses considered "active" (not finished) */
 export const ACTIVE_STATUSES: IssueStatus[] = [
-  "needs_refinement",
-  "ai_ready",
-  "todo",
+  "todo_needs_refinement",
+  "todo_refined",
+  "todo_bug",
   "in_progress",
   "in_review",
 ];
@@ -202,9 +202,9 @@ export const FINISHED_STATUSES: IssueStatus[] = ["done"];
 
 /** All valid statuses */
 export const VALID_STATUSES: IssueStatus[] = [
-  "needs_refinement",
-  "ai_ready",
-  "todo",
+  "todo_needs_refinement",
+  "todo_refined",
+  "todo_bug",
   "in_progress",
   "in_review",
   "done",

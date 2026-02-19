@@ -148,7 +148,7 @@ async function propagateStatusToParent(
   if (!parent) return;
 
   if (newStatus === "in_progress") {
-    if (parent.status === "todo") {
+    if (parent.status === "todo_refined" || parent.status === "todo_bug" || parent.status === "todo_needs_refinement") {
       try {
         await updateIssue(parentId, { status: "in_progress" }, teamId);
       } catch {
@@ -165,7 +165,7 @@ async function propagateStatusToParent(
 
     if (!hasActiveWork && parent.status === "in_progress") {
       try {
-        await updateIssue(parentId, { status: "todo" }, teamId);
+        await updateIssue(parentId, { status: "todo_refined" }, teamId);
       } catch {
         return;
       }

@@ -1,7 +1,7 @@
 /**
  * lb refine - Refine rough issues into implementable specs
  *
- * Lists issues with status "needs_refinement", or refines a specific issue
+ * Lists issues with status "todo_needs_refinement", or refines a specific issue
  * by outputting a refinement prompt that guides an agent to add
  * implementation details and acceptance criteria.
  */
@@ -51,15 +51,15 @@ Add the following sections to the description (use \`lb update <ID> -d "..."\`):
 
 When you're done refining, move the issue forward:
 \`\`\`bash
-lb update <ID> --status ai_ready
+lb update <ID> --status todo_refined
 \`\`\`
 
-This signals to the human reviewer that the issue is ready for approval.
+This marks the issue as refined and ready to be picked up.
 `;
 
 export const refineCommand = new Command("refine")
   .description("Refine rough issues into implementable specs")
-  .argument("[id]", "Issue ID to refine (omit to list all needs_refinement issues)")
+  .argument("[id]", "Issue ID to refine (omit to list all todo_needs_refinement issues)")
   .option("-j, --json", "Output as JSON")
   .option("--sync", "Force sync before listing")
   .option("--team <team>", "Team key (overrides config)")
@@ -85,10 +85,10 @@ export const refineCommand = new Command("refine")
           process.exit(1);
         }
 
-        if (issue.status !== "needs_refinement") {
+        if (issue.status !== "todo_needs_refinement") {
           outputError(
-            `Issue ${getDisplayId(issue.id)} is "${issue.status}", not "needs_refinement". ` +
-              `Only needs_refinement issues should be refined.`
+            `Issue ${getDisplayId(issue.id)} is "${issue.status}", not "todo_needs_refinement". ` +
+              `Only todo_needs_refinement issues should be refined.`
           );
           process.exit(1);
         }
@@ -109,11 +109,11 @@ export const refineCommand = new Command("refine")
         // Output the refinement prompt
         output(REFINEMENT_PROMPT.replace(/<ID>/g, getDisplayId(issue.id)));
       } else {
-        // List all needs_refinement issues
+        // List all todo_needs_refinement issues
         const allIssues = getCachedIssues();
         const blockedIds = getBlockedIssueIds();
         const refinementIssues = allIssues.filter(
-          (i) => i.status === "needs_refinement" && !blockedIds.has(i.id)
+          (i) => i.status === "todo_needs_refinement" && !blockedIds.has(i.id)
         );
 
         // Sort by priority, then updated_at

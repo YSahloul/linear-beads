@@ -139,6 +139,10 @@ export const createCommand = new Command("create")
 
       const labels: string[] | undefined = options.label?.length ? options.label : undefined;
 
+      // Determine default status: bugs (discovered-from) go to todo_bug, everything else to todo_needs_refinement
+      const hasDiscoveredFrom = allDeps.some((d) => d.type === "discovered-from");
+      const defaultStatus = hasDiscoveredFrom ? "todo_bug" : "todo_needs_refinement";
+
       // Local-only mode: create locally without Linear
       if (isLocalOnly()) {
         const localId = generateLocalId();
@@ -148,7 +152,7 @@ export const createCommand = new Command("create")
           id: localId,
           title,
           description: options.description,
-          status: "todo",
+          status: defaultStatus,
           priority,
           issue_type: issueType,
           labels,
@@ -246,6 +250,7 @@ export const createCommand = new Command("create")
           parentId: resolvedParent,
           assigneeId,
           labels,
+          status: defaultStatus,
         });
 
         // Handle deps after issue creation
@@ -286,7 +291,7 @@ export const createCommand = new Command("create")
           id: localId,
           title,
           description: options.description,
-          status: "todo",
+          status: defaultStatus,
           priority,
           issue_type: issueType,
           labels,

@@ -41,7 +41,7 @@ export const readyCommand = new Command("ready")
 
       // Filter to open issues that are not blocked
       const blockedIds = getBlockedIssueIds();
-      let readyIssues = allIssues.filter((i) => i.status === "todo" && !blockedIds.has(i.id));
+      let readyIssues = allIssues.filter((i) => (i.status === "todo_refined" || i.status === "todo_bug") && !blockedIds.has(i.id));
 
       // Filter by assignee unless --all (skip in local-only mode)
       if (!options.all && !localOnly) {

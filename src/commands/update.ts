@@ -74,7 +74,7 @@ export const updateCommand = new Command("update")
   .argument("<id>", "Issue ID")
   .option("--title <title>", "New title")
   .option("-d, --description <desc>", "New description")
-  .option("-s, --status <status>", "Status: open, in_progress, closed")
+  .option("-s, --status <status>", "Status: todo_needs_refinement, todo_refined, todo_bug, in_progress, in_review, done")
   .option("-p, --priority <priority>", "Priority: urgent, high, medium, low, backlog (or 0-4)")
   .option("--assign <email>", "Assign to user (email or 'me')")
   .option("--unassign", "Remove assignee")
@@ -112,9 +112,9 @@ export const updateCommand = new Command("update")
 
       if (options.status) {
         const validStatuses = [
-          "needs_refinement",
-          "ai_ready",
-          "todo",
+          "todo_needs_refinement",
+          "todo_refined",
+          "todo_bug",
           "in_progress",
           "in_review",
           "done",

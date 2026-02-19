@@ -1069,7 +1069,7 @@ export async function createIssue(params: {
     projectId = await ensureRepoProject(params.teamId);
   }
 
-  const stateId = await getWorkflowStateId(params.teamId, params.status || "todo");
+  const stateId = await getWorkflowStateId(params.teamId, params.status || "todo_needs_refinement");
 
   // Resolve parentId if provided (identifier -> UUID)
   let parentUuid: string | undefined;

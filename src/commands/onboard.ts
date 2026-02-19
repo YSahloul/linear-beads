@@ -54,31 +54,32 @@ lb sync        # Push any changes back to Linear
 Every issue flows through these statuses:
 
 \`\`\`
-needs_refinement → ai_ready → todo → in_progress → in_review → done
+todo_needs_refinement → todo_refined → in_progress → in_review → done
+                                  ↗
+                        todo_bug
 \`\`\`
 
 | Status | Meaning |
 |--------|---------|
-| \`needs_refinement\` | Rough idea, needs implementation details |
-| \`ai_ready\` | Refined with details, waiting for human review |
-| \`todo\` | Approved and ready to work on (shown by \`lb ready\`) |
+| \`todo_needs_refinement\` | New idea/feature/task — needs implementation details |
+| \`todo_refined\` | Refined with details, ready to pick up (shown by \`lb ready\`) |
+| \`todo_bug\` | Bug found by agent while working, ready to pick up (shown by \`lb ready\`) |
 | \`in_progress\` | Actively being worked on |
 | \`in_review\` | PR open, waiting for human review |
 | \`done\` | Merged and complete |
 
 ### Two Paths Into the Pipeline
 
-**Human writes a rough story:**
-1. Human creates issue → status \`needs_refinement\`
+**Human or agent writes a story:**
+1. \`lb create "title"\` → status \`todo_needs_refinement\`
 2. Agent runs \`lb refine\` to find issues needing refinement
 3. Agent runs \`lb refine ID\` to see the issue + refinement checklist
 4. Agent adds implementation details, acceptance criteria, technical approach
-5. Agent moves to \`ai_ready\`: \`lb update ID --status ai_ready\`
-6. Human reviews, approves → moves to \`todo\`
-7. Agent picks up from \`lb ready\` → normal coding flow
+5. Agent moves to \`todo_refined\`: \`lb update ID --status todo_refined\`
+6. Agent picks up from \`lb ready\` → normal coding flow
 
 **Agent discovers a bug/issue while working:**
-1. Agent creates issue with full context → goes straight to \`todo\`
+1. Agent creates issue with full context → goes straight to \`todo_bug\`
    \`\`\`bash
    lb create "Found: race condition in auth" --discovered-from LIN-XXX -d "Details..."
    \`\`\`
@@ -86,7 +87,7 @@ needs_refinement → ai_ready → todo → in_progress → in_review → done
 
 ### Coding Workflow (Main Session = Coordinator)
 
-1. \`lb sync\` → \`lb ready\` - Find unblocked \`todo\` work
+1. \`lb sync\` → \`lb ready\` - Find unblocked \`todo_refined\` and \`todo_bug\` work
 2. \`lb update ID --status in_progress\` - Claim it
 3. Create a worktree for the issue:
    \`\`\`bash
@@ -184,20 +185,20 @@ lb create "Step 3: Do Z" --parent LIN-XXX --blocked-by LIN-YYY
 | Command | Purpose |
 |---------|---------|
 | \`lb sync\` | Sync with Linear |
-| \`lb ready\` | Show unblocked \`todo\` issues |
+| \`lb ready\` | Show unblocked \`todo_refined\` + \`todo_bug\` issues |
 | \`lb refine\` | List issues needing refinement |
 | \`lb refine ID\` | Show issue + refinement checklist |
 | \`lb blocked\` | Show blocked issues with blockers |
 | \`lb show ID\` | Full issue details + relationships |
-| \`lb create "Title" -d "..."\` | Create issue (defaults to \`todo\`) |
+| \`lb create "Title" -d "..."\` | Create issue (defaults to \`todo_needs_refinement\`) |
 | \`lb create "Title" -l label\` | Create with label |
 | \`lb create "Title" --parent ID\` | Create subtask |
 | \`lb update ID --status in_progress\` | Claim work |
 | \`lb update ID --status in_review\` | PR opened |
-| \`lb update ID --status ai_ready\` | Refinement done |
+| \`lb update ID --status todo_refined\` | Refinement done |
 | \`lb update ID --label name\` | Add label |
 | \`lb update ID --unlabel name\` | Remove label |
-| \`lb list --status todo\` | Filter by status |
+| \`lb list --status todo_refined\` | Filter by status |
 | \`lb list --label name\` | Filter by label |
 | \`lb close ID --reason "why"\` | Mark done |
 | \`lb dep add ID --blocks OTHER\` | Add dependency |
