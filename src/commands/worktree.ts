@@ -88,6 +88,44 @@ function findEnvFiles(dir: string): string[] {
   return results;
 }
 
+/**
+ * Detect the package manager from lockfiles and run install in the worktree.
+ * Returns true if install was run, false if no lockfile was found (caller should fallback).
+ *
+ * In monorepos (pnpm/yarn workspaces), symlinking root node_modules/ breaks because
+ * per-package node_modules/ dirs (with .bin/, workspace cross-refs) don't exist.
+ * Running the package manager install is idempotent and fast with a warm store.
+ */
+async function installDeps(repoRoot: string, wtPath: string): Promise<boolean> {
+  // Detect package manager from lockfile in the worktree (git checkout copies them)
+  const lockfiles: Array<{ file: string; cmd: string; name: string }> = [
+    { file: "pnpm-lock.yaml", cmd: "pnpm install --frozen-lockfile", name: "pnpm" },
+    { file: "bun.lockb", cmd: "bun install --frozen-lockfile", name: "bun" },
+    { file: "bun.lock", cmd: "bun install --frozen-lockfile", name: "bun" },
+    { file: "yarn.lock", cmd: "yarn install --frozen-lockfile", name: "yarn" },
+    { file: "package-lock.json", cmd: "npm ci", name: "npm" },
+  ];
+
+  for (const { file, cmd, name } of lockfiles) {
+    if (existsSync(join(wtPath, file))) {
+      output(`Installing dependencies with ${name}...`);
+      try {
+        execSync(cmd, { cwd: wtPath, stdio: "pipe" });
+        output(`  ${name} install complete`);
+        return true;
+      } catch (err) {
+        outputError(
+          `  Warning: ${name} install failed: ${err instanceof Error ? err.message : err}`
+        );
+        // Don't return false — try symlinking as fallback
+        return false;
+      }
+    }
+  }
+
+  return false;
+}
+
 // ─── lb worktree create ───────────────────────────────────────────────
 
 const createCommand = new Command("create")
@@ -154,8 +192,28 @@ const createCommand = new Command("create")
         }
       }
 
-      // 3. Symlink shared directories
-      const symlinkTargets = ["node_modules", ".opencode", ".claude"];
+      // 3. Install dependencies or symlink node_modules
+      //    - If a lockfile exists, run the package manager (handles monorepos correctly)
+      //    - Otherwise fall back to symlinking root node_modules/
+      const installed = await installDeps(repoRoot, wtPath);
+      if (!installed) {
+        // Fallback: symlink root node_modules/ (single-package repos without lockfiles)
+        const nmSrc = join(repoRoot, "node_modules");
+        const nmDest = join(wtPath, "node_modules");
+        if (existsSync(nmSrc) && !existsSync(nmDest)) {
+          try {
+            symlinkSync(nmSrc, nmDest);
+            output("Symlinked node_modules/");
+          } catch (err) {
+            outputError(
+              `  Warning: Could not symlink node_modules: ${err instanceof Error ? err.message : err}`
+            );
+          }
+        }
+      }
+
+      // Symlink config directories (not node_modules — handled above)
+      const symlinkTargets = [".opencode", ".claude"];
       for (const target of symlinkTargets) {
         const srcPath = join(repoRoot, target);
         const destPath = join(wtPath, target);
@@ -165,7 +223,6 @@ const createCommand = new Command("create")
             symlinkSync(srcPath, destPath);
             output(`Symlinked ${target}/`);
           } catch (err) {
-            // If symlink fails (e.g. already exists as dir), warn but continue
             outputError(
               `  Warning: Could not symlink ${target}: ${err instanceof Error ? err.message : err}`
             );
