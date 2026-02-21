@@ -2,7 +2,7 @@
  * lb worktree - Create, list, and delete git worktrees for issue branches
  *
  * Automates the full worktree lifecycle:
- *   create: git worktree add + copy .env files + symlink shared dirs + lb onboard + lb sync
+ *   create: git worktree add + copy .env files + symlink shared dirs + lb init + lb sync
  *   delete: safety checks + git worktree remove
  *   list:   show active worktrees
  */
@@ -94,7 +94,7 @@ const createCommand = new Command("create")
   .description("Create a worktree for an issue branch")
   .argument("<branch>", 'Branch name (e.g. "AGE-42-fix-auth")')
   .option("--base <branch>", "Base branch to create from (auto-detects main/master)")
-  .option("--no-onboard", "Skip running lb onboard in the worktree")
+  .option("--no-init", "Skip running lb init in the worktree")
   .option("--no-sync", "Skip running lb sync in the worktree")
   .action(async (branch: string, options) => {
     try {
@@ -173,14 +173,14 @@ const createCommand = new Command("create")
         }
       }
 
-      // 4. Run lb onboard in the worktree (unless --no-onboard)
-      if (options.onboard !== false) {
-        output("Running lb onboard...");
+      // 4. Run lb init in the worktree (unless --no-init)
+      if (options.init !== false) {
+        output("Running lb init...");
         try {
-          execSync("lb onboard", { cwd: wtPath, stdio: "pipe" });
+          execSync("lb init", { cwd: wtPath, stdio: "pipe" });
         } catch {
-          // Onboard may fail if auth/init already done — that's fine
-          output("  (skipped — already onboarded)");
+          // Init may fail if already done — that's fine
+          output("  (skipped — already initialized)");
         }
       }
 
