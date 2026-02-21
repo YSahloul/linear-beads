@@ -50,15 +50,23 @@ export const initCommand = new Command("init")
       const validScopes: RepoScopeMode[] = ["label", "project", "both"];
       const scope: RepoScopeMode = validScopes.includes(options.scope) ? options.scope : "project";
 
-      // Verify API key
+      // Verify API key — run auth automatically if missing
       try {
         getApiKey();
         output("✓ Linear API key found");
-      } catch (error) {
-        output("✗ No Linear API key configured");
-        output("\nRun 'lb auth' first to configure your API key");
-        output("Or set LINEAR_API_KEY environment variable");
-        process.exit(1);
+      } catch {
+        output("No Linear API key found. Running `lb auth`...\n");
+        const { execSync } = await import("child_process");
+        execSync("lb auth", { stdio: "inherit" });
+        output("");
+        // Verify it worked
+        try {
+          getApiKey();
+          output("✓ Linear API key configured");
+        } catch {
+          output("✗ Auth failed. Set LINEAR_API_KEY environment variable manually.");
+          process.exit(1);
+        }
       }
 
       // Get/detect team
@@ -134,12 +142,7 @@ export const initCommand = new Command("init")
       output("");
       output("Do NOT gitignore .lb/config.jsonc — it should be tracked.");
       output("");
-      output("Add this to your AGENTS.md or CLAUDE.md:");
-      output("");
-      output("  This project uses lb for issue tracking.");
-      output("  Run `lb onboard` and follow the instructions.");
-      output("");
-      output("Then your agent will set up the rest.");
+      output("Run `lb sync` then `lb ready` to find work.");
     } catch (error) {
       console.error("Error:", error instanceof Error ? error.message : error);
       process.exit(1);
