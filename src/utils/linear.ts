@@ -29,6 +29,8 @@ import {
   cacheViewer,
   getCachedViewer,
   getCachedIssue,
+  cacheTeamId,
+  getCachedTeamId,
 } from "./database.js";
 import type { Issue, IssueType, Priority, LinearIssue, IssueStatus } from "../types.js";
 import {
@@ -38,6 +40,20 @@ import {
   priorityToLinear,
   statusToLinearStateName,
 } from "../types.js";
+
+/**
+ * Detect Linear API rate-limit errors (HTTP 429 / RATELIMITED)
+ */
+export function isRateLimitError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const msg = error.message;
+  return (
+    msg.includes("RATELIMITED") ||
+    msg.includes("Rate limit exceeded") ||
+    msg.includes("ratelimited") ||
+    msg.includes("429")
+  );
+}
 
 /**
  * Convert Linear issue to bd-compatible issue
@@ -438,6 +454,10 @@ export async function getTeamId(teamKey?: string): Promise<string> {
 
   // If team key is provided, look it up
   if (key) {
+    // Check cache first to avoid burning API requests
+    const cached = getCachedTeamId(key);
+    if (cached) return cached;
+
     const query = `
       query GetTeam($key: String!) {
         teams(filter: { key: { eq: $key } }) {
@@ -458,10 +478,16 @@ export async function getTeamId(teamKey?: string): Promise<string> {
       throw new Error(`Team not found: ${key}`);
     }
 
-    return result.teams.nodes[0].id;
+    const teamId = result.teams.nodes[0].id;
+    cacheTeamId(key, teamId);
+    return teamId;
   }
 
   // No team key provided - auto-detect from user's teams
+  // Check cache under the sentinel key "_auto"
+  const cachedAuto = getCachedTeamId("_auto");
+  if (cachedAuto) return cachedAuto;
+
   const query = `
     query GetTeams {
       teams {
@@ -485,6 +511,8 @@ export async function getTeamId(teamKey?: string): Promise<string> {
   if (result.teams.nodes.length === 1) {
     // Auto-select single team
     const team = result.teams.nodes[0];
+    cacheTeamId("_auto", team.id);
+    cacheTeamId(team.key, team.id);
     return team.id;
   }
 

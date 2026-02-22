@@ -9,7 +9,7 @@
 
 import { writePidFile, removePidFile, getPidFileMtime } from "./pid-manager.js";
 import { getPendingOutboxItems, needsFullSync, incrementSyncRunCount } from "./database.js";
-import { getTeamId, fetchIssues, fetchAllIssuesPaginated } from "./linear.js";
+import { getTeamId, fetchIssues, fetchAllIssuesPaginated, isRateLimitError } from "./linear.js";
 import { exportToJsonl } from "./jsonl.js";
 import { processOutboxQueue } from "./outbox-processor.js";
 
@@ -35,15 +35,33 @@ async function processOutbox(): Promise<void> {
       if (items.length > 0) {
         // Get team ID once (cache it)
         if (!teamId) {
-          teamId = await getTeamId();
+          try {
+            teamId = await getTeamId();
+          } catch (error) {
+            if (isRateLimitError(error)) {
+              // Rate limited — leave items in outbox, exit cleanly so next lb command re-spawns
+              console.log("Worker: rate limited, leaving outbox for next run");
+              return;
+            }
+            throw error;
+          }
         }
 
-        const result = await processOutboxQueue(teamId, { propagateParent: true });
-        if (result.success > 0 || result.failed > 0) {
-          lastActivityTime = Date.now();
-        }
-        if (result.success > 0) {
-          didWork = true;
+        try {
+          const result = await processOutboxQueue(teamId, { propagateParent: true });
+          if (result.success > 0 || result.failed > 0) {
+            lastActivityTime = Date.now();
+          }
+          if (result.success > 0) {
+            didWork = true;
+          }
+        } catch (error) {
+          if (isRateLimitError(error)) {
+            // Rate limited mid-queue — leave remaining items, exit cleanly
+            console.log("Worker: rate limited mid-queue, leaving remaining items for next run");
+            return;
+          }
+          throw error;
         }
       } else {
         // No items - check if we should stay alive
@@ -70,8 +88,13 @@ async function processOutbox(): Promise<void> {
       if (!teamId) {
         teamId = await getTeamId();
       }
-      await fetchIssues(teamId);
-      exportToJsonl();
+      try {
+        await fetchIssues(teamId);
+        exportToJsonl();
+      } catch (error) {
+        if (!isRateLimitError(error)) throw error;
+        // Rate limited on post-work pull — that's fine, outbox was pushed successfully
+      }
     }
 
     // Check if we should run a full sync (every 3rd run or >24h since last)
@@ -87,8 +110,12 @@ async function processOutbox(): Promise<void> {
         exportToJsonl();
         incrementSyncRunCount();
       } catch (error) {
-        console.error("Background full sync failed:", error);
-        // Don't fail the worker, just log and continue
+        if (isRateLimitError(error)) {
+          console.log("Background full sync: rate limited, will retry next run");
+        } else {
+          console.error("Background full sync failed:", error);
+        }
+        // Don't fail the worker in either case
       }
     }
 

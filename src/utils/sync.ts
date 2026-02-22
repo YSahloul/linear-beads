@@ -15,6 +15,7 @@ import {
   fetchAllIssuesPaginated,
   fetchAllUpdatedIssues,
   getTeamId,
+  isRateLimitError,
 } from "./linear.js";
 import { exportToJsonl } from "./jsonl.js";
 import { isWorkerRunning } from "./pid-manager.js";
@@ -158,13 +159,22 @@ export function scheduleBackgroundFullSyncIfNeeded(): void {
 }
 
 /**
- * Check if sync is needed and optionally perform it
+ * Check if sync is needed and optionally perform it.
+ * Returns false (skip sync) if rate-limited — caller continues with cached data.
  */
 export async function ensureFresh(teamKey?: string, force: boolean = false): Promise<boolean> {
   if (!force && !isCacheStale()) {
     return false; // Cache is fresh
   }
 
-  await smartSync(teamKey, force);
-  return true; // Synced
+  try {
+    await smartSync(teamKey, force);
+    return true; // Synced
+  } catch (error) {
+    if (isRateLimitError(error)) {
+      // Rate limited — silently fall through to local cache
+      return false;
+    }
+    throw error;
+  }
 }

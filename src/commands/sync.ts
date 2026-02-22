@@ -5,8 +5,9 @@
 import { Command } from "commander";
 import { smartSync } from "../utils/sync.js";
 import { output, outputError } from "../utils/output.js";
-import { getPendingOutboxItems } from "../utils/database.js";
+import { getPendingOutboxItems, getCacheInfo } from "../utils/database.js";
 import { isLocalOnly } from "../utils/config.js";
+import { isRateLimitError } from "../utils/linear.js";
 
 /**
  * Check if error is a network/connectivity issue
@@ -60,6 +61,17 @@ export const syncCommand = new Command("sync")
         }
       }
     } catch (error) {
+      if (isRateLimitError(error)) {
+        const pending = getPendingOutboxItems();
+        const cacheInfo = getCacheInfo();
+        const ageMinutes = Math.floor(cacheInfo.ageSeconds / 60);
+        output("Rate limited by Linear API — using local cache");
+        output(`  Cache is ${ageMinutes}m old. Retry sync in ~1 hour.`);
+        if (pending.length > 0) {
+          output(`  ${pending.length} pending change(s) will sync when limit resets`);
+        }
+        return; // Exit 0 — local reads still work
+      }
       if (isNetworkError(error)) {
         const pending = getPendingOutboxItems();
         outputError("Offline: Unable to connect to Linear");

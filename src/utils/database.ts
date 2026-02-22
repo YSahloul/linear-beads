@@ -984,6 +984,28 @@ export function replaceIssueId(localId: string, linearId: string): void {
 }
 
 /**
+ * Cache team ID for a given team key to avoid repeated API lookups
+ */
+export function cacheTeamId(teamKey: string, teamId: string): void {
+  const db = getDatabase();
+  db.run("INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)", [
+    `team_id:${teamKey}`,
+    teamId,
+  ]);
+}
+
+/**
+ * Get cached team ID for a given team key (returns null if not cached)
+ */
+export function getCachedTeamId(teamKey: string): string | null {
+  const db = getDatabase();
+  const row = db.query("SELECT value FROM metadata WHERE key = ?").get(
+    `team_id:${teamKey}`
+  ) as { value: string } | null;
+  return row?.value ?? null;
+}
+
+/**
  * Cache viewer info (current user)
  */
 export function cacheViewer(viewer: { id: string; email: string; name: string }): void {
